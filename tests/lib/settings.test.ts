@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { loadSettings, saveSettings, resetSettings, settings } from '../../src/lib/settings.svelte'
+import { createDebouncedSaver } from '../../src/lib/settingsStorage'
 import { DEFAULT_SETTINGS } from '../../src/engine/defaults'
 
 const store = (v: string) => ({ getItem: () => v })
@@ -68,5 +69,45 @@ describe('resetSettings', () => {
     settings.value.layout.frame = '4:5'
     expect(DEFAULT_SETTINGS).toEqual(snap)
     resetSettings()
+  })
+})
+
+describe('createDebouncedSaver', () => {
+  afterEach(() => vi.useRealTimers())
+  const mk = (n: number) => ({ ...structuredClone(DEFAULT_SETTINGS), layout: { ...DEFAULT_SETTINGS.layout, detail: n } })
+  it('saves once with the last value after the delay', () => {
+    vi.useFakeTimers()
+    const save = vi.fn()
+    const d = createDebouncedSaver(save, 300)
+    d.schedule(mk(30))
+    vi.advanceTimersByTime(200)
+    d.schedule(mk(40))
+    vi.advanceTimersByTime(299)
+    expect(save).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(save.mock.calls[0][0].layout.detail).toBe(40)
+  })
+  it('flush saves immediately, once', () => {
+    vi.useFakeTimers()
+    const save = vi.fn()
+    const d = createDebouncedSaver(save)
+    d.schedule(mk(50))
+    d.flush()
+    expect(save).toHaveBeenCalledTimes(1)
+    vi.advanceTimersByTime(1000)
+    expect(save).toHaveBeenCalledTimes(1)
+    d.flush()
+    expect(save).toHaveBeenCalledTimes(1)
+  })
+  it('cancel prevents the save', () => {
+    vi.useFakeTimers()
+    const save = vi.fn()
+    const d = createDebouncedSaver(save)
+    d.schedule(mk(60))
+    d.cancel()
+    vi.advanceTimersByTime(1000)
+    d.flush()
+    expect(save).not.toHaveBeenCalled()
   })
 })

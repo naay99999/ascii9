@@ -24,6 +24,13 @@ describe('loadBitmap', () => {
     vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ width: 0, height: 0, close }))
     await expect(loadBitmap(new Blob(['x']))).rejects.toThrow("Couldn't read that image.")
   })
+  it('rejects when the re-decode is empty', async () => {
+    const close = vi.fn()
+    const empty = { width: 0, height: 0, close: vi.fn() }
+    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValueOnce({ width: 9000, height: 3000, close }).mockResolvedValueOnce(empty))
+    await expect(loadBitmap(new Blob(['x']))).rejects.toThrow("Couldn't read that image.")
+    expect(empty.close).toHaveBeenCalled()
+  })
   it('caps long edge by re-decoding', async () => {
     const close = vi.fn()
     const small = { width: 4096, height: 1365 }

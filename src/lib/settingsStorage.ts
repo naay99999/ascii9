@@ -74,3 +74,34 @@ export function saveSettings(storage: Pick<Storage, 'setItem'> | null, s: Settin
     /* quota / disabled storage */
   }
 }
+
+export function createDebouncedSaver(
+  save: (s: Settings) => void,
+  delayMs = 300,
+): { schedule(s: Settings): void; flush(): void; cancel(): void } {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let pending: Settings | undefined
+  const cancel = () => {
+    if (timer !== undefined) clearTimeout(timer)
+    timer = undefined
+    pending = undefined
+  }
+  return {
+    schedule(s) {
+      if (timer !== undefined) clearTimeout(timer)
+      pending = s
+      timer = setTimeout(() => {
+        const p = pending
+        timer = undefined
+        pending = undefined
+        if (p) save(p)
+      }, delayMs)
+    },
+    flush() {
+      const p = pending
+      cancel()
+      if (p) save(p)
+    },
+    cancel,
+  }
+}
