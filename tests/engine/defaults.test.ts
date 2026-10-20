@@ -9,11 +9,12 @@ test('default look is the Original preset', () => {
   expect(DEFAULT_SETTINGS.layout).toEqual({ detail:80, frame:'original', fit:'fill', flipH:false })
 })
 test('presets set unlisted look fields to defaults', () => {
-  expect(PRESETS.terminal.look).toEqual({ ...DEFAULT_SETTINGS.look, monoColor:'#00ff9f', contrast:15 })
-  expect(PRESETS.amber.look.charset).toBe(' .:+=*&%$#@')
-  expect(PRESETS.blocks.look).toMatchObject({ style:'blocks', colorMode:'image', contrast:25 })
-  expect(PRESETS.sketch.look).toMatchObject({ monoColor:'#e0e0e0', edges:true, contrast:30, invert:false })
-  expect(PRESETS.neon.look).toMatchObject({ colorMode:'duotone', duo1:'#00ffff', duo2:'#ff00ff', edges:true, contrast:40 })
+  expect(PRESETS.original.look).toEqual(DEFAULT_SETTINGS.look)
+  expect(PRESETS.terminal.look).toEqual({ ...DEFAULT_SETTINGS.look, monoColor:'#00ff9f', contrast:20 })
+  expect(PRESETS.amber.look).toEqual({ ...DEFAULT_SETTINGS.look, monoColor:'#ffb000', charset:' .:+=*&%$#@', contrast:20 })
+  expect(PRESETS.blocks.look).toEqual({ ...DEFAULT_SETTINGS.look, style:'blocks', colorMode:'image', contrast:25, gamma:0.8, saturation:120 })
+  expect(PRESETS.sketch.look).toEqual({ ...DEFAULT_SETTINGS.look, monoColor:'#e0e0e0', edges:true, edgeIntensity:100, contrast:30, brightness:-20 })
+  expect(PRESETS.neon.look).toEqual({ ...DEFAULT_SETTINGS.look, colorMode:'duotone', duo1:'#00ffff', duo2:'#ff00ff', edges:true, edgeIntensity:80, contrast:40, brightness:-10 })
 })
 test('applyPreset keeps layout, replaces look', () => {
   const s = { ...DEFAULT_SETTINGS, layout: { detail:150, frame:'9:16', fit:'fit', flipH:true } } as Settings

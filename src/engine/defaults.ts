@@ -32,15 +32,27 @@ export const DEFAULT_SETTINGS: Settings = {
 
 const look = (o: Partial<LookSettings>): LookSettings => ({ ...DEFAULT_LOOK, ...o })
 
+// Tuned by eye on the four bundled samples at Detail 80 (see the Task 10 report for the reasons).
 export const PRESETS: Record<PresetId, { label: string; look: LookSettings }> = {
   original: { label: 'Original', look: look({}) },
-  terminal: { label: 'Terminal', look: look({ monoColor: '#00ff9f' }) },
-  amber: { label: 'Amber', look: look({ monoColor: '#ffb000', charset: ' .:+=*&%$#@' }) },
-  blocks: { label: 'Blocks', look: look({ style: 'blocks', colorMode: 'image', contrast: 25 }) },
-  sketch: { label: 'Sketch', look: look({ monoColor: '#e0e0e0', edges: true, contrast: 30 }) },
+  terminal: { label: 'Terminal', look: look({ monoColor: '#00ff9f', contrast: 20 }) },
+  amber: { label: 'Amber', look: look({ monoColor: '#ffb000', charset: ' .:+=*&%$#@', contrast: 20 }) },
+  blocks: { label: 'Blocks', look: look({ style: 'blocks', colorMode: 'image', contrast: 25, gamma: 0.8, saturation: 120 }) },
+  sketch: {
+    label: 'Sketch',
+    look: look({ monoColor: '#e0e0e0', edges: true, edgeIntensity: 100, contrast: 30, brightness: -20 }),
+  },
   neon: {
     label: 'Neon',
-    look: look({ colorMode: 'duotone', duo1: '#00ffff', duo2: '#ff00ff', edges: true, contrast: 40 }),
+    look: look({
+      colorMode: 'duotone',
+      duo1: '#00ffff',
+      duo2: '#ff00ff',
+      edges: true,
+      edgeIntensity: 80,
+      contrast: 40,
+      brightness: -10,
+    }),
   },
 }
 
