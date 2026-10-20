@@ -31,7 +31,7 @@ export interface Settings {
   layout: LayoutSettings
 }
 
-/** Cell grid produced by the engine. `glyphs[0]` is the space; `index` is one
+/** Cell grid produced by the engine. `glyphs` is the ramp; a space glyph is ' ' (do not assume index 0 is a space); `index` is one
  * entry per cell, row-major; `rgb` holds 3 bytes per cell. */
 export interface Grid {
   cols: number
