@@ -11,5 +11,5 @@ export const SAMPLES: readonly Sample[] = [
   { id: 'sunflower', label: 'Sunflower', src: 'samples/sunflower.webp' },
   { id: 'cat', label: 'Cat', src: 'samples/cat.webp' },
   { id: 'portrait', label: 'Portrait', src: 'samples/portrait.webp' },
-  { id: 'eiffel', label: 'Eiffel Tower', src: 'samples/eiffel.webp' },
+  { id: 'liberty', label: 'Statue of Liberty', src: 'samples/liberty.webp' },
 ]
