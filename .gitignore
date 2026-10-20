@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.superpowers/
+.taste-skill/
+.DS_Store
