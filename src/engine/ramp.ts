@@ -12,7 +12,9 @@ export function splitGlyphs(s: string): string[] {
 /** Glyph ramp, darkest to densest; [0] is always ' '. */
 export function rampFor(look: LookSettings): string[] {
   if (look.style === 'blocks') return Array.from(BLOCK_RAMP)
-  const glyphs = splitGlyphs(look.charset === '' ? CHARSETS.classic : look.charset)
+  const custom = look.charset.trim() === '' ? CHARSETS.classic : look.charset
+  const glyphs = splitGlyphs(custom)
+  if (glyphs.length === 1) return glyphs // single glyph fills every cell
   return glyphs[0] === ' ' ? glyphs : [' ', ...glyphs]
 }
 

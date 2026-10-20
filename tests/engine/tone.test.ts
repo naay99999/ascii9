@@ -30,7 +30,7 @@ describe('adjustRGB', () => {
     expect(run(255, 0, 0, { colorMode: 'mono', saturation: 0 })).toEqual([255, 0, 0])
   })
   it('applies gamma before brightness (order)', () => {
-    // gamma 2 then +100*2.55: 128 -> 64 -> clamp 255; reverse order would differ for negatives
+    // gamma 2: 128->64.25, then -51 -> 13; brightness-first would give ~23
     expect(run(128, 128, 128, { gamma: 2, brightness: -20 })[0]).toBe(13)
   })
 })

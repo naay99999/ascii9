@@ -23,6 +23,14 @@ describe('rampFor', () => {
   it('prepends a space when missing', () => {
     expect(rampFor(look({ charset: 'ab' }))).toEqual([' ', 'a', 'b'])
   })
+  it('single non-space glyph fills every cell', () => {
+    expect(rampFor(look({ charset: 'a' }))).toEqual(['a'])
+    expect(rampFor(look({ charset: '❤️' }))).toEqual(['❤️'])
+  })
+  it('whitespace-only charset falls back to Classic', () => {
+    expect(rampFor(look({ charset: ' ' }))).toEqual(splitGlyphs(CHARSETS.classic))
+    expect(rampFor(look({ charset: '   ' }))).toEqual(splitGlyphs(CHARSETS.classic))
+  })
   it('keeps a leading space as is', () => {
     expect(rampFor(look({ charset: ' ab' }))).toEqual([' ', 'a', 'b'])
   })
