@@ -15,6 +15,11 @@ export function layoutText(cols: number, rows: number, W: number, H: number, cel
   return { fontSize, cellW, cellH, x0: (W - cellW * cols) / 2, y0: (H - cellH * rows) / 2 }
 }
 
+/** Shade glyphs (U+2591-2593, U+2588) are not in the bundled JetBrains Mono subsets, so they would
+ * fall back to a system font whose blocks vary by OS and need not fill the 1 em cell. They are
+ * painted as whole-cell rects at the matching coverage instead; TXT export keeps the glyphs. */
+const SHADE_ALPHA: Record<string, number> = { '\u2591': 0.25, '\u2592': 0.5, '\u2593': 0.75, '\u2588': 1 }
+
 /** Single renderer shared by the preview and exports. Every glyph is placed at
  * its own cell origin so wide or non-monospace glyphs cannot drift the layout. */
 export function drawGrid(ctx: Ctx, grid: Grid, W: number, H: number, cellAspect: number): void {
@@ -23,6 +28,8 @@ export function drawGrid(ctx: Ctx, grid: Grid, W: number, H: number, cellAspect:
   const { fontSize, cellW, cellH, x0, y0 } = layoutText(grid.cols, grid.rows, W, H, cellAspect)
   ctx.font = `${fontSize}px "JetBrains Mono"` // taste-skill-ignore: the ASCII art itself is set in a monospace face (spec 4.2)
   ctx.textBaseline = 'top'
+  const alpha0 = ctx.globalAlpha
+  let alpha = alpha0
   let last = ''
   for (let r = 0; r < grid.rows; r++) {
     const y = y0 + r * cellH
@@ -32,7 +39,18 @@ export function drawGrid(ctx: Ctx, grid: Grid, W: number, H: number, cellAspect:
       if (glyph === undefined || glyph === ' ') continue
       const fill = `rgb(${grid.rgb[i * 3]},${grid.rgb[i * 3 + 1]},${grid.rgb[i * 3 + 2]})`
       if (fill !== last) { ctx.fillStyle = fill; last = fill }
-      ctx.fillText(glyph, x0 + c * cellW, y)
+      const shade = SHADE_ALPHA[glyph]
+      if (shade !== undefined) {
+        if (shade !== alpha) { ctx.globalAlpha = shade; alpha = shade }
+        // Snap both edges to whole pixels so neighbouring blocks meet with no hairline gap or overlap.
+        const xa = Math.round(x0 + c * cellW)
+        const ya = Math.round(y)
+        ctx.fillRect(xa, ya, Math.round(x0 + (c + 1) * cellW) - xa, Math.round(y + cellH) - ya)
+      } else {
+        if (alpha !== 1) { ctx.globalAlpha = 1; alpha = 1 }
+        ctx.fillText(glyph, x0 + c * cellW, y)
+      }
     }
   }
+  ctx.globalAlpha = alpha0
 }
