@@ -22,26 +22,39 @@ export interface WorkerLike {
   onmessage: ((e: { data: FromWorker }) => void) | null
 }
 
+/** What a convert request was made with, handed back with its grid. */
+export interface Used {
+  settings: Settings
+  cellAspect: number
+}
+
 export function createConverter(
   worker: WorkerLike,
-  onGrid: (g: Grid, plan: GridPlan) => void,
+  onGrid: (g: Grid, plan: GridPlan, used: Used) => void,
   delayMs = 60,
 ) {
   let nextId = 0
   let lastDelivered = 0
   let timer: ReturnType<typeof setTimeout> | null = null
+  // Per-request record of the inputs, so a reply can be described by what produced it
+  // rather than by whatever the settings are when it arrives.
+  const sent = new Map<number, Used>()
   const pendingAuto = new Map<number, { resolve: (r: AutoResult) => void; reject: (e: Error) => void }>()
 
   worker.onmessage = (e) => {
     const msg = e.data
     if (msg.type === 'grid') {
       if (msg.id < lastDelivered) return
+      const used = sent.get(msg.id)
       lastDelivered = msg.id
-      onGrid(msg.grid, msg.plan)
+      for (const id of sent.keys()) if (id <= msg.id) sent.delete(id)
+      if (!used) return
+      onGrid(msg.grid, msg.plan, used)
     } else if (msg.type === 'auto') {
       pendingAuto.get(msg.id)?.resolve(msg.result)
       pendingAuto.delete(msg.id)
     } else if (msg.type === 'error') {
+      sent.delete(msg.id)
       const p = pendingAuto.get(msg.id)
       if (p) {
         pendingAuto.delete(msg.id)
@@ -57,9 +70,12 @@ export function createConverter(
     },
     request(settings: Settings, cellAspect: number): void {
       if (timer !== null) clearTimeout(timer)
+      const used: Used = { settings: structuredClone(settings), cellAspect }
       timer = setTimeout(() => {
         timer = null
-        worker.postMessage({ type: 'convert', id: ++nextId, settings, cellAspect })
+        const id = ++nextId
+        sent.set(id, used)
+        worker.postMessage({ type: 'convert', id, settings: used.settings, cellAspect })
       }, delayMs)
     },
     autoAdjust(): Promise<AutoResult> {
@@ -72,6 +88,7 @@ export function createConverter(
     dispose(): void {
       if (timer !== null) clearTimeout(timer)
       timer = null
+      sent.clear()
       for (const p of pendingAuto.values()) p.reject(new Error('disposed'))
       pendingAuto.clear()
       worker.onmessage = null

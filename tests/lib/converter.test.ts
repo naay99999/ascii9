@@ -100,4 +100,48 @@ describe('createConverter', () => {
     vi.advanceTimersByTime(60)
     expect(posted[1].m.type).toBe('convert')
   })
+  it('passes the settings and cellAspect of the request whose reply is delivered, not the latest', () => {
+    const { w, reply } = fakeWorker()
+    const onGrid = vi.fn()
+    const c = createConverter(w, onGrid)
+    const s = (frame: '1:1' | '9:16') => ({ ...DEFAULT_SETTINGS, layout: { ...DEFAULT_SETTINGS.layout, frame } })
+    c.request(s('1:1'), 0.6)
+    vi.advanceTimersByTime(60) // id 1 sent
+    c.request(s('9:16'), 0.55)
+    vi.advanceTimersByTime(60) // id 2 sent, not answered yet
+    reply({ type: 'grid', id: 1, grid: grid(1), plan })
+    expect(onGrid).toHaveBeenCalledTimes(1)
+    const used = onGrid.mock.calls[0][2]
+    expect(used.settings.layout.frame).toBe('1:1')
+    expect(used.cellAspect).toBe(0.6)
+    reply({ type: 'grid', id: 2, grid: grid(2), plan })
+    expect(onGrid.mock.calls[1][2].settings.layout.frame).toBe('9:16')
+    expect(onGrid.mock.calls[1][2].cellAspect).toBe(0.55)
+  })
+
+  it('records a copy: mutating the settings after request does not change used', () => {
+    const { w, reply } = fakeWorker()
+    const onGrid = vi.fn()
+    const c = createConverter(w, onGrid)
+    const s = structuredClone(DEFAULT_SETTINGS)
+    c.request(s, 0.6)
+    vi.advanceTimersByTime(60)
+    s.layout.detail = 199
+    reply({ type: 'grid', id: 1, grid: grid(1), plan })
+    expect(onGrid.mock.calls[0][2].settings.layout.detail).toBe(DEFAULT_SETTINGS.layout.detail)
+  })
+
+  it('still drops stale replies after a newer one was delivered, with used intact', () => {
+    const { w, reply } = fakeWorker()
+    const onGrid = vi.fn()
+    const c = createConverter(w, onGrid)
+    c.request(DEFAULT_SETTINGS, 0.6)
+    vi.advanceTimersByTime(60)
+    c.request({ ...DEFAULT_SETTINGS, layout: { ...DEFAULT_SETTINGS.layout, frame: '4:5' } }, 0.6)
+    vi.advanceTimersByTime(60)
+    reply({ type: 'grid', id: 2, grid: grid(2), plan })
+    reply({ type: 'grid', id: 1, grid: grid(1), plan })
+    expect(onGrid).toHaveBeenCalledTimes(1)
+    expect(onGrid.mock.calls[0][2].settings.layout.frame).toBe('4:5')
+  })
 })

@@ -59,7 +59,7 @@
     <div>
       <h3 class="lab">Characters</h3>
       <Chips label="Characters" options={charsetOptions} value={charsetId} onchange={(id) => (settings.value.look.charset = CHARSETS[id])} />
-      <label class="sr-only" for={charsetFieldId}>Custom characters, darkest to densest</label>
+      <label class="sr-only" for={charsetFieldId}>Custom characters, sparse to dense</label>
       <input
         id={charsetFieldId}
         class="charset"

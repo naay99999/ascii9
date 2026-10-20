@@ -160,22 +160,14 @@
     border-radius: var(--radius-control) 0 0 var(--radius-control);
     font-variant-numeric: tabular-nums;
   }
-  .caret {
+  .pill .caret {
     display: grid;
     place-items: center;
     width: 32px;
     padding: 0 4px 0 0;
-    position: relative;
+    margin-left: 2px;
     border-radius: 0 var(--radius-control) var(--radius-control) 0;
-  }
-  .caret::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 8px;
-    bottom: 8px;
-    width: 1px;
-    background: #c8c8c8;
+    background: #e4e4e4;
   }
   .main:disabled {
     cursor: progress;
@@ -195,7 +187,6 @@
     padding: 4px;
     border-radius: 12px;
     background: var(--raised);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   }
   .menu button {
     height: 32px;

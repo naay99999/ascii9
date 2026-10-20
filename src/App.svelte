@@ -6,7 +6,7 @@
   import type { Format } from './components/DownloadButton.svelte'
   import { settings } from './lib/settings.svelte'
   import { validateFile, loadBitmap, imageFromClipboard, imageFromDrop } from './lib/input'
-  import { createConverter, type AutoResult, type WorkerLike } from './lib/converter'
+  import { createConverter, type AutoResult, type Used, type WorkerLike } from './lib/converter'
   import { measureCellAspect } from './lib/measure'
   import { SAMPLES } from './lib/samples'
   import { exportSize, type GridPlan } from './engine/layout'
@@ -21,8 +21,20 @@
   /** Resolves when the art font is in (or after a 3 s grace), so the first measure and draw use it. */
   let fontGate: Promise<unknown> = Promise.resolve()
   let imageReady = $state(false)
-  let grid = $state.raw<Grid | null>(null)
-  let plan = $state.raw<GridPlan | null>(null)
+  /** Bumped after each new image (and when the font arrives) so the one request effect re-runs. */
+  let imageVersion = $state(0)
+  let fontVersion = $state(0)
+
+  /** The art on screen, described ONLY by what produced it. Readout, preview and every export read
+   * from this bundle, never from the current settings, so what you see is what you download even
+   * while a newer request is in flight. */
+  interface Shown {
+    grid: Grid
+    plan: GridPlan
+    used: Used
+    size: [number, number]
+  }
+  let shown = $state.raw<Shown | null>(null)
   let selectedSample = $state<string | null>(SAMPLES[0]?.id ?? null)
   let userImage = $state(false)
   let dropping = $state(false)
@@ -30,10 +42,6 @@
   let errorTimer: ReturnType<typeof setTimeout> | undefined
   let loadSeq = 0
 
-  // Output size for the grid on screen. exportSize may return a shared tuple: copy it.
-  const size = $derived<[number, number] | null>(
-    grid && plan ? [...exportSize(settings.value.layout, plan, cellAspect)] as [number, number] : null,
-  )
 
   function snapshot(): Settings {
     return $state.snapshot(settings.value) as Settings
@@ -46,8 +54,8 @@
   }
 
   /** Decode a blob and hand it to the worker. On failure the current image stays. */
-  async function useBlob(blob: Blob, sampleId: string | null) {
-    const seq = ++loadSeq
+  async function useBlob(blob: Blob, sampleId: string | null, seq: number) {
+    if (seq !== loadSeq) return
     let bitmap: ImageBitmap
     try {
       bitmap = await loadBitmap(blob)
@@ -62,45 +70,51 @@
     }
     // setImage transfers (detaches) the bitmap: nothing may touch it afterwards.
     converter.setImage(bitmap)
-    converter.request(snapshot(), cellAspect)
     imageReady = true
+    imageVersion++ // the settings effect sends the convert request
     selectedSample = sampleId
     if (sampleId === null) userImage = true
   }
 
   function useFile(f: File) {
+    const seq = ++loadSeq // the latest image request wins, whatever resolves first
     const check = validateFile(f)
     if (!check.ok) {
       showError(check.message)
       return
     }
-    void useBlob(f, null)
+    void useBlob(f, null, seq)
   }
 
   async function useSample(id: string) {
     const s = SAMPLES.find((x) => x.id === id)
     if (!s) return
+    const seq = ++loadSeq
     try {
       const res = await fetch(s.src)
       if (!res.ok) throw new Error(String(res.status))
-      await useBlob(await res.blob(), id)
+      const blob = await res.blob()
+      await useBlob(blob, id, seq)
     } catch {
-      showError("Couldn't load that sample.")
+      if (seq === loadSeq) showError("Couldn't load that sample.")
     }
   }
 
-  // Re-convert whenever any setting (or the measured cell aspect) changes.
+  // The single request path: re-convert whenever a setting, the cell aspect, the image or the font changes.
   $effect(() => {
     const s = snapshot()
     const a = cellAspect
+    void imageVersion
+    void fontVersion
     if (imageReady && converter) converter.request(s, a)
   })
 
   onMount(() => {
     const worker = new ConvertWorker()
-    converter = createConverter(worker as unknown as WorkerLike, (g, p) => {
-      grid = g
-      plan = p
+    converter = createConverter(worker as unknown as WorkerLike, (g, p, used) => {
+      // exportSize may return a shared tuple: copy it.
+      const size = [...exportSize(used.settings.layout, p, used.cellAspect)] as [number, number]
+      shown = { grid: g, plan: p, used, size }
     })
 
     // Canvas text never triggers the @font-face load by itself: ask for the art font before the
@@ -113,8 +127,8 @@
     void fontLoad.then(() => {
       if (disposed) return
       const a = measureCellAspect()
-      if (a !== cellAspect) cellAspect = a // the settings effect re-requests
-      else if (imageReady) converter?.request(snapshot(), a)
+      if (a !== cellAspect) cellAspect = a
+      else fontVersion++ // same aspect: still redraw with the real font
     })
 
     if (SAMPLES[0]) void useSample(SAMPLES[0].id)
@@ -145,21 +159,25 @@
   }
 
   async function save(format: Format) {
-    const g = grid
-    const sz = size
-    if (!g || !sz) throw new Error('Nothing to save yet')
+    const art = shown // exactly what is on screen
+    if (!art) throw new Error('Nothing to save yet')
     if (format === 'txt') {
-      saveBlob(new Blob([gridToText(g)], { type: 'text/plain;charset=utf-8' }), fileName('txt'))
+      saveBlob(new Blob([gridToText(art.grid)], { type: 'text/plain;charset=utf-8' }), fileName('txt'))
       return
     }
-    const blob = await exportImage(g, sz, cellAspect, format === 'png' ? 'image/png' : 'image/jpeg')
+    const type = format === 'png' ? 'image/png' : 'image/jpeg'
+    const blob = await exportImage(art.grid, [art.size[0], art.size[1]], art.used.cellAspect, type)
     saveBlob(blob, fileName(format))
   }
 
   // ---- Global input: paste and drag/drop anywhere on the page ----
   function isTextTarget(t: EventTarget | null): boolean {
+    // Only text-entry fields keep a paste for themselves; a focused slider, swatch or button does not.
     if (!(t instanceof HTMLElement)) return false
-    return t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t.isContentEditable
+    if (t.isContentEditable) return true
+    return t.matches(
+      'textarea, input:not([type=range]):not([type=color]):not([type=file]):not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([type=reset]):not([type=image])',
+    )
   }
 
   function onPaste(e: ClipboardEvent) {
@@ -212,13 +230,13 @@
 
 <div class="app">
   <div class="top">
-    <TopBar {userImage} canSave={!!grid} {save} />
+    <TopBar {userImage} canSave={!!shown} {save} />
   </div>
   <main class="stage-area">
     <Stage
-      {grid}
-      {size}
-      {cellAspect}
+      grid={shown?.grid ?? null}
+      size={shown?.size ?? null}
+      cellAspect={shown?.used.cellAspect ?? cellAspect}
       {dropping}
       {error}
       {selectedSample}
