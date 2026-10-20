@@ -23,7 +23,11 @@ export async function exportImage(
   type: 'image/png' | 'image/jpeg',
 ): Promise<Blob> {
   const [W, H] = size
-  if (typeof document !== 'undefined' && document.fonts) await document.fonts.ready
+  if (typeof document !== 'undefined' && document.fonts) {
+    // Canvas text alone never starts the @font-face download: request it explicitly.
+    await document.fonts.load('400 16px "JetBrains Mono"').catch(() => undefined)
+    await document.fonts.ready
+  }
   if (typeof OffscreenCanvas !== 'undefined') {
     const canvas = new OffscreenCanvas(W, H)
     const ctx = canvas.getContext('2d')
