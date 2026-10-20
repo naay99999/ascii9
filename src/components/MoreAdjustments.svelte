@@ -115,7 +115,7 @@
   }
   .lab {
     margin: 0 0 8px;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 400;
     color: var(--faint);
   }
@@ -129,7 +129,7 @@
     background: var(--raised);
     color: var(--text);
     font-family: var(--font-art);
-    font-size: 12px;
+    font-size: 13px;
   }
   .charset::placeholder {
     color: var(--faint);
@@ -174,7 +174,7 @@
   }
   .note {
     margin: -8px 0 0;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--muted);
   }
   .sr-only {

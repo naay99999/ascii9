@@ -21,7 +21,7 @@ export function drawGrid(ctx: Ctx, grid: Grid, W: number, H: number, cellAspect:
   ctx.fillStyle = '#000'
   ctx.fillRect(0, 0, W, H)
   const { fontSize, cellW, cellH, x0, y0 } = layoutText(grid.cols, grid.rows, W, H, cellAspect)
-  ctx.font = `${fontSize}px "JetBrains Mono"`
+  ctx.font = `${fontSize}px "JetBrains Mono"` // taste-skill-ignore: the ASCII art itself is set in a monospace face (spec 4.2)
   ctx.textBaseline = 'top'
   let last = ''
   for (let r = 0; r < grid.rows; r++) {

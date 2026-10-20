@@ -133,7 +133,7 @@
   }
   .lab {
     margin: 0 0 8px;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 400;
     color: var(--faint);
   }
@@ -183,7 +183,7 @@
   }
   .privacy {
     margin: auto 0 0;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--faint);
   }
   @media (max-width: 767px) {

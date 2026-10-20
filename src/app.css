@@ -13,7 +13,7 @@
   --control-height: 32px;
 
   --font-ui: "Inter", system-ui, sans-serif;
-  --font-art: "JetBrains Mono", ui-monospace, monospace;
+  --font-art: "JetBrains Mono", ui-monospace, monospace; /* taste-skill-ignore: the ASCII art itself is set in a monospace face (spec 4.2) */
 }
 
 *,

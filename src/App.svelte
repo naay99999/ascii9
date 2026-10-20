@@ -15,7 +15,7 @@
   import type { Grid, Settings } from './engine/types'
   import ConvertWorker from './worker/convert.worker?worker'
 
-  const ART_FONT = '400 16px "JetBrains Mono"'
+  const ART_FONT = '400 16px "JetBrains Mono"' // taste-skill-ignore: the ASCII art itself is set in a monospace face (spec 4.2)
 
   let converter: ReturnType<typeof createConverter> | null = null
   let cellAspect = $state(0.6)
@@ -257,6 +257,7 @@
       {selectedSample}
       onsample={(id) => void useSample(id)}
       onfile={useFile}
+      {mobile}
     />
   </main>
   {#if mobile}
@@ -279,7 +280,7 @@
       'top top'
       'stage panel';
     column-gap: 12px;
-    height: 100vh;
+    height: 100vh; /* taste-skill-ignore: fallback for browsers without dvh, overridden on the next line */
     height: 100dvh;
     padding: 0 12px 12px;
     overflow: hidden;

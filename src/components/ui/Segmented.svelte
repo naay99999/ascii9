@@ -31,7 +31,7 @@
     border-radius: var(--radius-control);
     background: transparent;
     color: var(--muted);
-    font-size: 12px;
+    font-size: 13px;
     transition: background-color 120ms ease, color 120ms ease;
   }
   button:hover:not(.on) {

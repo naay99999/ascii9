@@ -138,19 +138,19 @@
     gap: 12px;
   }
   .status {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--muted);
     min-width: 0;
   }
+  /* Two white halves split by a 2px gap of ground: one white, no second near-white tone. */
   .pill {
     display: flex;
+    gap: 2px;
     height: 32px;
-    border-radius: var(--radius-control);
-    background: var(--text);
   }
   .pill button {
     border: 0;
-    background: transparent;
+    background: var(--text);
     color: var(--ground);
     font-weight: 500;
     font-size: 13px;
@@ -165,9 +165,7 @@
     place-items: center;
     width: 32px;
     padding: 0 4px 0 0;
-    margin-left: 2px;
     border-radius: 0 var(--radius-control) var(--radius-control) 0;
-    background: #e4e4e4;
   }
   .main:disabled {
     cursor: progress;

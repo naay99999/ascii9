@@ -36,12 +36,12 @@
   }
   .chip {
     height: 28px;
-    padding: 0 11px;
+    padding: 0 9px;
     border: 0;
     border-radius: var(--radius-control);
     background: var(--raised);
     color: var(--muted);
-    font-size: 12px;
+    font-size: 13px;
     display: inline-flex;
     align-items: center;
     transition: background-color 120ms ease, color 120ms ease;
@@ -63,6 +63,9 @@
     scrollbar-width: none;
     margin-inline: calc(-1 * var(--pad));
     padding-inline: var(--pad);
+    /* overflow-x also clips vertically: leave room for the 2px + 2px focus ring. */
+    margin-block: -4px;
+    padding-block: 4px;
   }
   .scroll::-webkit-scrollbar {
     display: none;

@@ -67,7 +67,7 @@
     min-width: 0;
   }
   label {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--faint);
   }
   .row {
@@ -106,7 +106,7 @@
     border-radius: var(--radius-control);
     background: var(--raised);
     color: var(--text);
-    font-size: 12px;
+    font-size: 13px;
     font-variant-numeric: tabular-nums;
   }
   .hex.invalid {
@@ -119,7 +119,7 @@
   }
   .err {
     margin: 0;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--muted);
   }
   @media (max-width: 767px) {

@@ -10,7 +10,7 @@ export function measureCellAspect(): number {
           ? document.createElement('canvas').getContext('2d')
           : null
     if (!ctx) return FALLBACK
-    ctx.font = '100px "JetBrains Mono", ui-monospace, monospace'
+    ctx.font = '100px "JetBrains Mono", ui-monospace, monospace' // taste-skill-ignore: the ASCII art itself is set in a monospace face (spec 4.2)
     const a = ctx.measureText('M').width / 100
     return Number.isFinite(a) && a > 0 ? a : FALLBACK
   } catch {

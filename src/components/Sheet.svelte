@@ -41,13 +41,20 @@
     opener = null
   }
 
+  // Close on a backdrop click only when the press also started on the backdrop: a drag (e.g. text
+  // selection or a slider) that starts inside the sheet and is released outside must not close it.
+  let downOnBackdrop = false
+  function onpointerdown(e: PointerEvent) {
+    downOnBackdrop = e.target === dlg
+  }
   function onbackdrop(e: MouseEvent) {
-    if (e.target === dlg) open = false
+    if (e.target === dlg && downOnBackdrop) open = false
+    downOnBackdrop = false
   }
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
-<dialog bind:this={dlg} aria-labelledby={titleId} {onclose} onclick={onbackdrop}>
+<dialog bind:this={dlg} aria-labelledby={titleId} {onclose} {onpointerdown} onclick={onbackdrop}>
   <div class="sheet">
     <header>
       <h2 id={titleId}>{label}</h2>

@@ -13,8 +13,10 @@
     selectedSample: string | null
     onsample: (id: string) => void
     onfile: (f: File) => void
+    /** Phone layout: the zoom controls are hidden, so the art always renders at fit. */
+    mobile?: boolean
   }
-  let { grid, size, cellAspect, dropping, error, selectedSample, onsample, onfile }: Props = $props()
+  let { grid, size, cellAspect, dropping, error, selectedSample, onsample, onfile, mobile = false }: Props = $props()
 
   const ZMIN = 0.25
   const ZMAX = 3
@@ -23,6 +25,8 @@
   const PAD = 24
 
   let zoom = $state(1)
+  /** The zoom actually applied; a stale desktop zoom never sticks to a phone-sized viewport. */
+  const z = $derived(mobile ? 1 : zoom)
   let viewW = $state(0)
   let viewH = $state(0)
   let canvas: HTMLCanvasElement
@@ -41,7 +45,7 @@
   // Backing store: device pixels, sharper when zoomed in, capped.
   const backing = $derived.by(() => {
     if (!fit) return null
-    let k = dpr * Math.max(1, zoom)
+    let k = dpr * Math.max(1, z)
     const long = Math.max(fit.w, fit.h) * k
     if (long > MAX_BACKING) k *= MAX_BACKING / long
     return { w: Math.max(1, Math.round(fit.w * k)), h: Math.max(1, Math.round(fit.h * k)) }
@@ -67,13 +71,13 @@
 
 <section class="stage" class:dropping aria-label="Preview">
   <div class="view" bind:clientWidth={viewW} bind:clientHeight={viewH}>
-    <div class="sizer" role="img" aria-label="ASCII art preview" style:width="{(fit?.w ?? 0) * zoom + 2 * PAD}px" style:height="{(fit?.h ?? 0) * zoom + 2 * PAD}px">
+    <div class="sizer" role="img" aria-label="ASCII art preview" style:width="{(fit?.w ?? 0) * z + 2 * PAD}px" style:height="{(fit?.h ?? 0) * z + 2 * PAD}px">
       <canvas
         bind:this={canvas}
         class:hidden={!fit || !grid}
         style:width="{fit?.w ?? 0}px"
         style:height="{fit?.h ?? 0}px"
-        style:transform="scale({zoom})"
+        style:transform="scale({z})"
         aria-hidden="true"
       ></canvas>
     </div>
@@ -147,7 +151,7 @@
     gap: 16px;
   }
   .readout {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--faint);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
@@ -164,7 +168,7 @@
     border-radius: var(--radius-control);
     background: transparent;
     color: var(--muted);
-    font-size: 12px;
+    font-size: 13px;
   }
   .icon {
     width: 28px;
@@ -192,7 +196,7 @@
   .pct {
     min-width: 40px;
     text-align: center;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
   }

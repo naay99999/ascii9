@@ -142,7 +142,6 @@
     place-items: center;
     width: 48px;
     border-radius: 0 var(--radius-control) var(--radius-control) 0;
-    background: #e4e4e4;
   }
   .main:disabled,
   .caret:disabled {

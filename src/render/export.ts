@@ -25,7 +25,7 @@ export async function exportImage(
   const [W, H] = size
   if (typeof document !== 'undefined' && document.fonts) {
     // Canvas text alone never starts the @font-face download: request it explicitly.
-    await document.fonts.load('400 16px "JetBrains Mono"').catch(() => undefined)
+    await document.fonts.load('400 16px "JetBrains Mono"').catch(() => undefined) // taste-skill-ignore: the ASCII art itself is set in a monospace face (spec 4.2)
     await document.fonts.ready
   }
   if (typeof OffscreenCanvas !== 'undefined') {

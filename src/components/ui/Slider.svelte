@@ -43,7 +43,7 @@
   .row {
     display: flex;
     justify-content: space-between;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--faint);
     margin-bottom: 8px;
   }
@@ -123,7 +123,7 @@
   }
   .note {
     margin: 6px 0 0;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--faint);
   }
   @media (max-width: 767px) {
