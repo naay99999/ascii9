@@ -15,6 +15,12 @@ export interface GridPlan {
 
 const ORIGINAL_LONG_EDGE = 2048
 
+/** Most rows a grid may have: very tall images (a 1x4096 strip) would otherwise ask for millions of
+ * cells. Fill frames never reach it (9:16 is about 1.07 rows per column). */
+export function maxRows(cols: number): number {
+  return Math.max(cols * 4, 400)
+}
+
 /** cellAspect = cell width / cell height (about 0.6). */
 export function gridSize(imgW: number, imgH: number, layout: LayoutSettings, cellAspect: number): GridPlan {
   const cols = Math.max(1, Math.round(layout.detail))
@@ -34,7 +40,14 @@ export function gridSize(imgW: number, imgH: number, layout: LayoutSettings, cel
     ratio = r
   }
 
-  const rows = Math.max(1, Math.round((cols * cellAspect) / ratio))
+  let rows = Math.max(1, Math.round((cols * cellAspect) / ratio))
+  const cap = maxRows(cols)
+  if (rows > cap) {
+    // Too tall: keep the centre band whose shape fits the cap, so cells keep their aspect.
+    const sh = Math.min(crop.sh, Math.max(1, Math.floor((crop.sw * cap) / (cols * cellAspect))))
+    crop = { sx: crop.sx, sy: crop.sy + Math.round((crop.sh - sh) / 2), sw: crop.sw, sh }
+    rows = Math.min(cap, Math.max(1, Math.round((cols * cellAspect * sh) / crop.sw)))
+  }
   return { cols, rows, crop }
 }
 

@@ -25,4 +25,26 @@ describe('autoAdjust', () => {
     const r = autoAdjust(fill(10, 20, (i) => (i === 0 ? 0 : i === 1 ? 255 : 100 + (i % 20))), 10, 20)
     expect(r.contrast).toBeGreaterThan(10)
   })
+  it.each([
+    ['black', 0],
+    ['near-black', 3],
+    ['white', 255],
+    ['near-white', 252],
+  ])('a %s image keeps gamma in 0.5-2.0 (rounded to 0.1) and brightness in +-50', (_name, v) => {
+    const r = autoAdjust(fill(20, 10, () => v), 20, 10)
+    expect(r.gamma).toBeGreaterThanOrEqual(0.5)
+    expect(r.gamma).toBeLessThanOrEqual(2)
+    expect(Math.round(r.gamma * 10) / 10).toBe(r.gamma)
+    expect(Math.abs(r.brightness)).toBeLessThanOrEqual(50)
+    expect(r.contrast).toBeGreaterThanOrEqual(-30)
+    expect(r.contrast).toBeLessThanOrEqual(60)
+  })
+  it('the extremes reach the brightness clamp exactly', () => {
+    expect(autoAdjust(fill(10, 10, () => 0), 10, 10).brightness).toBe(50)
+    expect(autoAdjust(fill(10, 10, () => 255), 10, 10).brightness).toBe(-50)
+  })
+  it('an empty input (zero pixels) returns neutral, finite values', () => {
+    const r = autoAdjust(new Uint8ClampedArray(0), 0, 0)
+    expect(r).toEqual({ brightness: 0, contrast: -7, gamma: 1 })
+  })
 })

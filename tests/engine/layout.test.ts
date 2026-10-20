@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import { FRAME_SIZES, gridSize, exportSize } from '../../src/engine/layout'
 import type { LayoutSettings } from '../../src/engine/types'
 
@@ -36,4 +36,64 @@ test('fill portrait into 16:9 crops vertically, centred, integer', () => {
   expect(p.crop).toEqual({ sx:0, sy:360, sw:500, sh:281 })
   expect(p.cols).toBe(80)
   expect(p.rows).toBe(Math.round(80 * 0.6 / (16 / 9)))
+})
+
+describe('row cap for extreme portrait shapes', () => {
+  const cap = (cols: number) => Math.max(cols * 4, 400)
+  test.each([
+    [1, 4096, 80],
+    [1, 4096, 200],
+    [240, 4096, 200],
+  ])('%ix%i at detail %i stays within the cap', (w, h, detail) => {
+    for (const fit of ['fill', 'fit'] as const) {
+      const frame = fit === 'fit' ? '9:16' : 'original'
+      const p = gridSize(w, h, L({ detail, frame, fit }), 0.6)
+      expect(p.cols).toBe(detail)
+      expect(p.rows).toBeGreaterThanOrEqual(1)
+      expect(p.rows).toBeLessThanOrEqual(cap(detail))
+      // cropped vertically from the centre, integer, inside the image
+      expect(p.crop.sx).toBe(0)
+      expect(p.crop.sw).toBe(w)
+      for (const v of Object.values(p.crop)) expect(Number.isInteger(v)).toBe(true)
+      expect(p.crop.sh).toBeGreaterThanOrEqual(1)
+      expect(p.crop.sh).toBeLessThan(h)
+      expect(Math.abs(p.crop.sy - (h - p.crop.sh) / 2)).toBeLessThanOrEqual(0.5)
+    }
+  })
+  test('240x4096 at 200 keeps the cell aspect of the cropped region', () => {
+    const p = gridSize(240, 4096, L({ detail: 200 }), 0.6)
+    expect(p.rows).toBe(800)
+    expect(p.crop).toEqual({ sx: 0, sy: 1248, sw: 240, sh: 1600 })
+  })
+  test('shapes under the cap are untouched', () => {
+    const p = gridSize(1000, 3000, L({ detail: 80 }), 0.6)
+    expect(p).toEqual({ cols: 80, rows: 144, crop: { sx: 0, sy: 0, sw: 1000, sh: 3000 } })
+  })
+})
+
+describe('exportSize gaps', () => {
+  test('a Fit frame exports at the frame size', () => {
+    const l = L({ frame: '9:16', fit: 'fit' })
+    expect(exportSize(l, gridSize(1000, 500, l, 0.6), 0.6)).toEqual([1080, 1920])
+  })
+  test('portrait Original: the long edge is the height', () => {
+    const l = L({ detail: 80 })
+    const p = gridSize(500, 1000, l, 0.6)
+    expect(p.rows).toBe(96)
+    expect(exportSize(l, p, 0.6)).toEqual([1024, 2048])
+  })
+  test('capped portrait Original exports with the capped grid aspect', () => {
+    const l = L({ detail: 80 })
+    const p = gridSize(1, 4096, l, 0.6)
+    const [w, h] = exportSize(l, p, 0.6)
+    expect(h).toBe(2048)
+    expect(w / h).toBeCloseTo((p.cols * 0.6) / p.rows, 2)
+  })
+  test('1x1 image: exact crop and a square-ish export', () => {
+    const l = L({ detail: 20 })
+    const p = gridSize(1, 1, l, 0.6)
+    expect(p.crop).toEqual({ sx: 0, sy: 0, sw: 1, sh: 1 })
+    expect(p).toEqual({ cols: 20, rows: 12, crop: { sx: 0, sy: 0, sw: 1, sh: 1 } })
+    expect(exportSize(l, p, 0.6)).toEqual([2048, 2048])
+  })
 })

@@ -9,7 +9,8 @@ export function splitGlyphs(s: string): string[] {
   return Array.from(s)
 }
 
-/** Glyph ramp, darkest to densest; [0] is always ' '. */
+/** Glyph ramp, darkest to densest. [0] is ' ' for ramps of two or more glyphs; a single-glyph
+ * charset returns just that glyph, which then fills every cell. */
 export function rampFor(look: LookSettings): string[] {
   if (look.style === 'blocks') return Array.from(BLOCK_RAMP)
   const custom = look.charset.trim() === '' ? CHARSETS.classic : look.charset
