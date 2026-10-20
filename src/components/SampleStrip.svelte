@@ -92,4 +92,25 @@
   .choose:hover {
     color: var(--text);
   }
+  @media (max-width: 767px) {
+    .strip {
+      flex: 1;
+    }
+    .thumbs {
+      flex: 1;
+      min-width: 0;
+      padding: 4px 4px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .thumb {
+      flex: none;
+      width: 44px;
+      height: 44px;
+    }
+    .sep,
+    .choose {
+      display: none;
+    }
+  }
 </style>

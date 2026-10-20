@@ -3,6 +3,7 @@
   import TopBar from './components/TopBar.svelte'
   import Stage from './components/Stage.svelte'
   import Panel from './components/Panel.svelte'
+  import MobileDock from './components/MobileDock.svelte'
   import type { Format } from './components/DownloadButton.svelte'
   import { settings } from './lib/settings.svelte'
   import { validateFile, loadBitmap, imageFromClipboard, imageFromDrop } from './lib/input'
@@ -41,7 +42,8 @@
   let error = $state('')
   let errorTimer: ReturnType<typeof setTimeout> | undefined
   let loadSeq = 0
-
+  /** Phone layout below 768 px. Only the chrome around Stage changes; the converter and worker stay put. */
+  let mobile = $state(typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches)
 
   function snapshot(): Settings {
     return $state.snapshot(settings.value) as Settings
@@ -77,12 +79,12 @@
   }
 
   function useFile(f: File) {
-    const seq = ++loadSeq // the latest image request wins, whatever resolves first
     const check = validateFile(f)
     if (!check.ok) {
       showError(check.message)
       return
     }
+    const seq = ++loadSeq // the latest valid image request wins, whatever resolves first
     void useBlob(f, null, seq)
   }
 
@@ -110,6 +112,11 @@
   })
 
   onMount(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const onMq = () => (mobile = mq.matches)
+    onMq()
+    mq.addEventListener('change', onMq)
+
     const worker = new ConvertWorker()
     converter = createConverter(worker as unknown as WorkerLike, (g, p, used) => {
       // exportSize may return a shared tuple: copy it.
@@ -134,6 +141,7 @@
     if (SAMPLES[0]) void useSample(SAMPLES[0].id)
 
     return () => {
+      mq.removeEventListener('change', onMq)
       disposed = true
       converter?.dispose()
       converter = null
@@ -151,11 +159,18 @@
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = name
+    // Browsers that ignore `download` (older iOS Safari) would navigate away from the app: open a tab instead.
+    const canDownload = 'download' in (a as HTMLAnchorElement)
+    const link = a as HTMLAnchorElement
+    if (canDownload) a.download = name
+    else {
+      link.target = '_blank'
+      link.rel = 'noopener'
+    }
     document.body.appendChild(a)
     a.click()
     a.remove()
-    setTimeout(() => URL.revokeObjectURL(url), 10_000)
+    setTimeout(() => URL.revokeObjectURL(url), canDownload ? 10_000 : 120_000)
   }
 
   async function save(format: Format) {
@@ -228,9 +243,9 @@
 
 <svelte:window onpaste={onPaste} ondragenter={onDragEnter} ondragover={onDragOver} ondragleave={onDragLeave} ondrop={onDrop} />
 
-<div class="app">
+<div class="app" class:mobile>
   <div class="top">
-    <TopBar {userImage} canSave={!!shown} {save} />
+    <TopBar {userImage} canSave={!!shown} {save} {mobile} onfile={useFile} />
   </div>
   <main class="stage-area">
     <Stage
@@ -244,9 +259,15 @@
       onfile={useFile}
     />
   </main>
-  <div class="panel-area">
-    <Panel {autoAdjust} />
-  </div>
+  {#if mobile}
+    <div class="dock-area">
+      <MobileDock {autoAdjust} {save} canSave={!!shown} />
+    </div>
+  {:else}
+    <div class="panel-area">
+      <Panel {autoAdjust} />
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -276,5 +297,21 @@
   .panel-area {
     grid-area: panel;
     min-height: 0;
+  }
+  .dock-area {
+    grid-area: dock;
+    min-width: 0;
+  }
+  .app.mobile {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 56px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'top'
+      'stage'
+      'dock';
+    padding: 0;
+  }
+  .app.mobile .stage-area {
+    margin: 0 var(--pad);
   }
 </style>

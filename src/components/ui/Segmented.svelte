@@ -41,4 +41,13 @@
     background: var(--text);
     color: var(--ground);
   }
+  @media (max-width: 767px) {
+    .seg {
+      padding: 2px;
+    }
+    button {
+      height: 44px;
+      font-size: 14px;
+    }
+  }
 </style>

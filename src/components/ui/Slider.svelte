@@ -126,4 +126,35 @@
     font-size: 12px;
     color: var(--faint);
   }
+  @media (max-width: 767px) {
+    .row {
+      font-size: 14px;
+    }
+    .track {
+      height: 44px;
+    }
+    .track::before,
+    .fill {
+      top: 20px;
+    }
+    input,
+    input::-webkit-slider-runnable-track {
+      height: 44px;
+    }
+    input::-moz-range-track {
+      height: 44px;
+    }
+    input::-webkit-slider-thumb {
+      width: 24px;
+      height: 24px;
+      margin-top: 10px;
+    }
+    input::-moz-range-thumb {
+      width: 24px;
+      height: 24px;
+    }
+    .note {
+      font-size: 14px;
+    }
+  }
 </style>

@@ -12,8 +12,12 @@
   interface Props {
     /** Asks the worker for auto brightness/contrast/gamma for the current image. */
     autoAdjust: () => Promise<AutoResult>
+    /** Hide the Look row (on phones it lives in the dock). */
+    showLook?: boolean
+    /** Rendered inside a sheet that owns the scrolling, background and radius. */
+    embedded?: boolean
   }
-  let { autoAdjust }: Props = $props()
+  let { autoAdjust, showLook = true, embedded = false }: Props = $props()
 
   const presetOptions = (Object.keys(PRESETS) as PresetId[]).map((id) => ({ value: id, label: PRESETS[id].label }))
   const colorOptions: { value: ColorMode; label: string }[] = [
@@ -42,7 +46,8 @@
   }
 </script>
 
-<aside class="panel" aria-label="Settings">
+<aside class="panel" class:embedded aria-label="Settings">
+  {#if showLook}
   <section>
     <h2 class="lab">Look</h2>
     <Chips
@@ -53,6 +58,7 @@
       onchange={choosePreset}
     />
   </section>
+  {/if}
 
   <section>
     <Slider
@@ -114,6 +120,13 @@
     border-radius: var(--radius-card);
     background: var(--surface);
   }
+  .panel.embedded {
+    height: auto;
+    overflow: visible;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+  }
   section {
     display: flex;
     flex-direction: column;
@@ -172,5 +185,15 @@
     margin: auto 0 0;
     font-size: 12px;
     color: var(--faint);
+  }
+  @media (max-width: 767px) {
+    .lab,
+    .privacy {
+      font-size: 14px;
+    }
+    .more summary {
+      min-height: 44px;
+      font-size: 14px;
+    }
   }
 </style>

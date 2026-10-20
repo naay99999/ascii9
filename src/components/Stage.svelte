@@ -213,4 +213,26 @@
     font-weight: 500;
     pointer-events: none;
   }
+  @media (max-width: 767px) {
+    .stage {
+      border-radius: 0;
+    }
+    .foot {
+      flex-wrap: nowrap;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 4px;
+      padding: 4px 0 0;
+    }
+    .zoom {
+      display: none;
+    }
+    .readout {
+      font-size: 14px;
+    }
+    .error {
+      font-size: 14px;
+      margin: 2px 0 0;
+    }
+  }
 </style>

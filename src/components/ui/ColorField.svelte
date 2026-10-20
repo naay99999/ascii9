@@ -122,4 +122,18 @@
     font-size: 12px;
     color: var(--muted);
   }
+  @media (max-width: 767px) {
+    label,
+    .err {
+      font-size: 14px;
+    }
+    .swatch {
+      width: 44px;
+      height: 44px;
+    }
+    .hex {
+      height: 44px;
+      font-size: 14px;
+    }
+  }
 </style>

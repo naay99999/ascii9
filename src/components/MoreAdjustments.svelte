@@ -185,4 +185,24 @@
     clip: rect(0 0 0 0);
     white-space: nowrap;
   }
+  @media (max-width: 767px) {
+    .lab {
+      font-size: 14px;
+    }
+    .charset {
+      height: 44px;
+      font-size: 14px;
+    }
+    .ghost,
+    .text {
+      height: 44px;
+      font-size: 14px;
+    }
+    .toggles {
+      gap: 0;
+    }
+    .note {
+      font-size: 14px;
+    }
+  }
 </style>

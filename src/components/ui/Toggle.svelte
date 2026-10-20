@@ -57,4 +57,10 @@
     background: var(--ground);
     transform: translateX(14px);
   }
+  @media (max-width: 767px) {
+    .toggle {
+      min-height: 44px;
+      font-size: 14px;
+    }
+  }
 </style>
