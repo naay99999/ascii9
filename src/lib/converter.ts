@@ -33,6 +33,8 @@ export interface Used {
 export interface ConverterOptions {
   /** A convert request failed in the worker. Not called for stale replies or autoAdjust errors. */
   onError?: (message: string, used: Used) => void
+  /** Image numbers start after this (default 0), so a replacement converter keeps counting. */
+  imageBase?: number
 }
 
 /** Convert requests run one at a time. The first request goes out on the next tick (a synchronous
@@ -46,7 +48,7 @@ export function createConverter(
 ) {
   let nextId = 0
   let lastDelivered = 0
-  let image = 0
+  let image = options.imageBase ?? 0
   let disposed = false
   let timer: ReturnType<typeof setTimeout> | null = null
   /** Id of the convert the worker is working on, if any. */
@@ -106,9 +108,12 @@ export function createConverter(
   }
 
   return {
-    setImage(bitmap: ImageBitmap): void {
+    /** Hands the bitmap to the worker (transferred: it is detached afterwards). Returns the image
+     * number later requests for it are tagged with (`Used.image`). */
+    setImage(bitmap: ImageBitmap): number {
       image++
       worker.postMessage({ type: 'image', bitmap }, [bitmap])
+      return image
     },
     request(settings: Settings, cellAspect: number): void {
       if (disposed) return

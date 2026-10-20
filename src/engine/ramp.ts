@@ -23,3 +23,18 @@ export function glyphIndex(L: number, n: number, invert: boolean): number {
   const i = Math.round(((invert ? 255 - L : L) / 255) * (n - 1))
   return i <= 0 ? 0 : i > n - 1 ? n - 1 : i
 }
+
+/** Longest custom charset, in UTF-16 code units (the text field's maxlength). */
+export const CHARSET_MAX = 256
+
+/** What the custom-characters field means: blank is Classic, and the text is capped at
+ * CHARSET_MAX code units without splitting a surrogate pair. */
+export function charsetFromInput(v: string): string {
+  if (v.trim() === '') return CHARSETS.classic
+  let out = ''
+  for (const ch of v) {
+    if (out.length + ch.length > CHARSET_MAX) break
+    out += ch
+  }
+  return out
+}

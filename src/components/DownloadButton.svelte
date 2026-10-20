@@ -198,7 +198,7 @@
   }
   .menu button:hover,
   .menu button:focus-visible {
-    background: #3a3a3a;
+    background: var(--raised-hover);
     color: var(--text);
     outline: none;
   }

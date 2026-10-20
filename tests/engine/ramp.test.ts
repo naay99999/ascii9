@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CHARSETS, DEFAULT_SETTINGS } from '../../src/engine/defaults'
-import { glyphIndex, rampFor, splitGlyphs } from '../../src/engine/ramp'
+import { CHARSET_MAX, charsetFromInput, glyphIndex, rampFor, splitGlyphs } from '../../src/engine/ramp'
 
 const look = (o = {}) => ({ ...DEFAULT_SETTINGS.look, ...o })
 
@@ -51,5 +51,19 @@ describe('glyphIndex', () => {
   it('clamps', () => {
     expect(glyphIndex(300, 10, false)).toBe(9)
     expect(glyphIndex(-5, 10, false)).toBe(0)
+  })
+})
+
+describe('charsetFromInput', () => {
+  it('an empty or blank field means Classic', () => {
+    expect(charsetFromInput('')).toBe(CHARSETS.classic)
+    expect(charsetFromInput('   ')).toBe(CHARSETS.classic)
+  })
+  it('keeps what was typed', () => expect(charsetFromInput(' .oO@')).toBe(' .oO@'))
+  it('caps the length at 256 characters without splitting a surrogate pair', () => {
+    expect(charsetFromInput('x'.repeat(300))).toHaveLength(CHARSET_MAX)
+    const out = charsetFromInput('😀'.repeat(300))
+    expect(Array.from(out)).toHaveLength(128)
+    expect(out.length).toBeLessThanOrEqual(CHARSET_MAX)
   })
 })

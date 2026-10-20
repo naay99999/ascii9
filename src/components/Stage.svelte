@@ -181,7 +181,8 @@
     background: var(--raised);
   }
   .icon:disabled {
-    color: #5e5e5e;
+    color: var(--faint);
+    opacity: 0.6;
     cursor: default;
   }
   .fitbtn {

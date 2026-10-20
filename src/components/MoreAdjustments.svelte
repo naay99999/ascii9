@@ -5,6 +5,7 @@
   import Toggle from './ui/Toggle.svelte'
   import { settings, resetSettings } from '../lib/settings.svelte'
   import { CHARSETS } from '../engine/defaults'
+  import { CHARSET_MAX, charsetFromInput } from '../engine/ramp'
   import type { Style } from '../engine/types'
   import type { AutoResult } from '../lib/converter'
 
@@ -29,6 +30,9 @@
     (Object.keys(CHARSETS) as CharsetId[]).find((k) => CHARSETS[k] === look.charset) ?? null,
   )
   const charsetFieldId = $props.id()
+  /** What is typed while the field has focus. A blank field previews Classic (and the Classic chip
+   * lights up) while it stays blank for typing; on blur it shows the charset actually in use. */
+  let draft = $state<string | null>(null)
 
   let busy = $state(false)
   let autoNote = $state('')
@@ -58,7 +62,10 @@
   {#if look.style === 'ascii'}
     <div>
       <h3 class="lab">Characters</h3>
-      <Chips label="Characters" options={charsetOptions} value={charsetId} onchange={(id) => (settings.value.look.charset = CHARSETS[id])} />
+      <Chips label="Characters" options={charsetOptions} value={charsetId} onchange={(id) => {
+          draft = null
+          settings.value.look.charset = CHARSETS[id]
+        }} />
       <label class="sr-only" for={charsetFieldId}>Custom characters, sparse to dense</label>
       <input
         id={charsetFieldId}
@@ -67,11 +74,13 @@
         spellcheck="false"
         autocomplete="off"
         placeholder="Your own characters"
-        value={look.charset}
+        maxlength={CHARSET_MAX}
+        value={draft ?? look.charset}
         oninput={(e) => {
-          const v = e.currentTarget.value
-          if (v.trim() !== '') settings.value.look.charset = v
+          draft = e.currentTarget.value
+          settings.value.look.charset = charsetFromInput(draft)
         }}
+        onblur={() => (draft = null)}
       />
     </div>
   {/if}

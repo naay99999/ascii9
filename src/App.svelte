@@ -18,6 +18,18 @@
   const ART_FONT = '400 16px "JetBrains Mono"' // taste-skill-ignore: the ASCII art itself is set in a monospace face (spec 4.2)
 
   let converter: ReturnType<typeof createConverter> | null = null
+  let worker: Worker | null = null
+  /** What each image handed to the current converter was (keyed by `Used.image`), and the blob to
+   * re-decode it from if the worker has to be restarted (setImage detaches the bitmap). */
+  interface ImageMeta {
+    sampleId: string | null
+    blob: Blob
+  }
+  let images = new Map<number, ImageMeta>()
+  let latestImage = 0
+  /** Worker crashes since the last good render; recovery stops after MAX_RESTARTS in a row. */
+  let crashes = 0
+  const MAX_RESTARTS = 2
   let cellAspect = $state(0.6)
   /** Resolves when the art font is in (or after a 3 s grace), so the first measure and draw use it. */
   let fontGate: Promise<unknown> = Promise.resolve()
@@ -36,6 +48,8 @@
     size: [number, number]
   }
   let shown = $state.raw<Shown | null>(null)
+  // Both describe the art on screen: they are set when a grid for an image is shown, not when the
+  // image is picked, so a failed convert never presents the previous art as the new image.
   let selectedSample = $state<string | null>(SAMPLES[0]?.id ?? null)
   let userImage = $state(false)
   let dropping = $state(false)
@@ -49,10 +63,16 @@
     return $state.snapshot(settings.value) as Settings
   }
 
-  function showError(message: string) {
+  const ENGINE_DEAD = 'The converter keeps failing. Reload the page to try again.'
+  /** Set when the message on screen is about a render that a good grid supersedes. */
+  let errorClearsOnGrid = false
+
+  /** Inline status message; it clears after 4 s unless `sticky`. */
+  function showError(message: string, opts: { clearsOnGrid?: boolean; sticky?: boolean } = {}) {
     error = message
+    errorClearsOnGrid = !!opts.clearsOnGrid
     clearTimeout(errorTimer)
-    errorTimer = setTimeout(() => (error = ''), 4000)
+    if (!opts.sticky) errorTimer = setTimeout(() => (error = ''), 4000)
   }
 
   /** Decode a blob and hand it to the worker. On failure the current image stays. */
@@ -68,14 +88,80 @@
     await fontGate
     if (seq !== loadSeq || !converter) {
       bitmap.close()
+      if (seq === loadSeq && !converter) showError(ENGINE_DEAD, { sticky: true })
       return
     }
     // setImage transfers (detaches) the bitmap: nothing may touch it afterwards.
-    converter.setImage(bitmap)
+    const n = converter.setImage(bitmap)
+    latestImage = n
+    images.set(n, { sampleId, blob })
+    // Keep only the image on screen and the newest one (blobs can be large).
+    for (const k of images.keys()) if (k !== n && k !== shown?.used.image) images.delete(k)
     imageReady = true
     imageVersion++ // the settings effect sends the convert request
-    selectedSample = sampleId
-    if (sampleId === null) userImage = true
+  }
+
+  function onGrid(g: Grid, p: GridPlan, used: Used) {
+    crashes = 0
+    if (errorClearsOnGrid) {
+      error = ''
+      errorClearsOnGrid = false
+      clearTimeout(errorTimer)
+    }
+    // exportSize may return a shared tuple: copy it.
+    const size = [...exportSize(used.settings.layout, p, used.cellAspect)] as [number, number]
+    shown = { grid: g, plan: p, used, size }
+    const meta = images.get(used.image)
+    if (meta) {
+      selectedSample = meta.sampleId
+      if (meta.sampleId === null) userImage = true
+    }
+  }
+
+  /** A convert failed in the worker. The last good art stays on screen and keeps describing itself:
+   * selection and hint only move when a grid for the new image arrives, so nothing to roll back. */
+  function onConvertError(_message: string, used: Used) {
+    const newImage = !!shown && used.image !== shown.used.image
+    showError(newImage ? "Couldn't convert that image. Still showing the previous one." : "Couldn't convert that image.", {
+      clearsOnGrid: true,
+    })
+  }
+
+  function startEngine() {
+    const w = new ConvertWorker()
+    // Listeners rather than on* properties: Chromium has no Worker.onmessageerror attribute.
+    w.addEventListener('error', (e) => {
+      e.preventDefault()
+      onCrash(w)
+    })
+    w.addEventListener('messageerror', () => onCrash(w))
+    worker = w
+    images = new Map()
+    converter = createConverter(w as unknown as WorkerLike, onGrid, { onError: onConvertError, imageBase: latestImage })
+  }
+
+  function stopEngine() {
+    converter?.dispose()
+    converter = null
+    worker?.terminate()
+    worker = null
+  }
+
+  /** The worker died or sent something unreadable: replace it and re-decode the image on screen
+   * (or, if nothing is shown yet, the newest one) from its kept blob. */
+  function onCrash(from: Worker) {
+    if (from !== worker) return // an old worker's late event
+    const keep = (shown && images.get(shown.used.image)) || images.get(latestImage) || null
+    stopEngine()
+    imageReady = false
+    crashes++
+    if (crashes > MAX_RESTARTS) {
+      showError(ENGINE_DEAD, { sticky: true })
+      return
+    }
+    showError('Something went wrong converting. Reloading the engine…') // stays its 4 s: still true after recovery
+    startEngine()
+    if (keep) void useBlob(keep.blob, keep.sampleId, ++loadSeq)
   }
 
   function useFile(f: File) {
@@ -117,12 +203,7 @@
     onMq()
     mq.addEventListener('change', onMq)
 
-    const worker = new ConvertWorker()
-    converter = createConverter(worker as unknown as WorkerLike, (g, p, used) => {
-      // exportSize may return a shared tuple: copy it.
-      const size = [...exportSize(used.settings.layout, p, used.cellAspect)] as [number, number]
-      shown = { grid: g, plan: p, used, size }
-    })
+    startEngine()
 
     // Canvas text never triggers the @font-face load by itself: ask for the art font before the
     // first measure and draw. If it is slow, go ahead after 3 s and re-measure once it arrives.
@@ -143,9 +224,7 @@
     return () => {
       mq.removeEventListener('change', onMq)
       disposed = true
-      converter?.dispose()
-      converter = null
-      worker.terminate()
+      stopEngine()
       clearTimeout(errorTimer)
     }
   })
