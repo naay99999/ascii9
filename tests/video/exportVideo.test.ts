@@ -212,7 +212,7 @@ describe('exportVideo', () => {
   it('passes the audio plan to the sink', async () => {
     const { factory, calls } = fakeSink()
     const opts = { reader: fakeReader(), onProgress: () => {}, signal: new AbortController().signal, sink: factory }
-    const aac = { codec: 'aac', sampleRate: 48000, channels: 2 }
+    const aac = { codec: 'aac', sampleRate: 48000, channels: 2, copyable: true, decodable: true }
     await exportVideo(job({ audio: aac }), opts)
     await exportVideo({ ...job({ audio: aac }), sound: false }, { ...opts, reader: fakeReader() })
     await exportVideo({ ...job({ audio: aac }), container: 'webm' }, { ...opts, reader: fakeReader() })

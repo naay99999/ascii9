@@ -7,7 +7,7 @@
   import { gifSize } from '../engine/layout'
   import { exclusive } from '../lib/exclusive'
   import { fileName } from '../render/export'
-  import { audioPlan } from '../video/audioPlan'
+  import { audioPlan, SOUND_ERROR } from '../video/audioPlan'
   import { deliveryMode, shareFile } from '../video/deliver'
   import type { VideoInfo } from '../video/probe'
   import { exportSupport, type ExportSupport } from '../video/support'
@@ -187,7 +187,7 @@
       logError(e)
       controller = null
       phase = 'idle'
-      message = EXPORT_ERROR
+      message = e instanceof Error && e.message === SOUND_ERROR ? SOUND_ERROR : EXPORT_ERROR
       void refocus()
       return
     }

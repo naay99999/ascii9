@@ -3,7 +3,7 @@ import { gridFromSource, type Ctx2D } from '../engine/sample'
 import { frameTimes, gridSize, outputFps, VIDEO_FPS_CAP, videoExportSize } from '../engine/layout'
 import type { Settings } from '../engine/types'
 import { drawGrid } from '../render/drawGrid'
-import { audioPlan, type AudioPlan } from './audioPlan'
+import { audioPlan, SOUND_ERROR, type AudioPlan } from './audioPlan'
 import type { VideoInfo } from './probe'
 import type { FrameReader, ReaderFrame } from './readers'
 import type { ExportSupport } from './support'
@@ -208,8 +208,9 @@ async function audioPump(
   const source = new mb.AudioSampleSource({
     codec: container === 'mp4' ? 'aac' : 'opus',
     quality,
-    // Opus encoders take 48 kHz; both encoders are safest with at most stereo.
-    transform: { numberOfChannels: Math.min(2, channels), ...(container === 'webm' ? { sampleRate: 48000 } : {}) },
+    // Resample to 48 kHz: Opus takes nothing else, and AAC encoders reject unusual rates. Both are
+    // safest with at most stereo.
+    transform: { numberOfChannels: Math.min(2, channels), sampleRate: 48000 },
   })
   return {
     source,
@@ -251,6 +252,8 @@ export const mediabunnySink: VideoSinkFactory = async (size, fps, container, { c
     video = new mb.CanvasSource(canvas, { codec, quality })
     output.addVideoTrack(video, { frameRate: fps })
     const sound = audio ? await openAudio(mb, audio, container, quality) : null
+    // Sound was asked for and judged possible: failing beats a silent file the user didn't expect.
+    if (audio && !sound) throw new Error(SOUND_ERROR)
     if (sound) output.addAudioTrack(sound.source)
     await output.start()
     // Runs alongside the video frames; the muxer interleaves the two tracks.

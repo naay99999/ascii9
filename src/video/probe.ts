@@ -12,7 +12,15 @@ export interface VideoInfo {
   videoCodec: string | null
   /** Whether this browser can decode the video track (WebCodecs). */
   canDecode: boolean
-  audio: { codec: string; sampleRate: number; channels: number } | null
+  audio: {
+    codec: string
+    sampleRate: number
+    channels: number
+    /** Its packets can be passed through as-is: the file describes the codec fully. */
+    copyable: boolean
+    /** This browser can decode it, so it can be re-encoded. */
+    decodable: boolean
+  } | null
 }
 
 /** How many packets to look at for the frame rate: enough for a steady average without reading
@@ -43,13 +51,15 @@ export async function probeVideo(file: Blob): Promise<VideoInfo> {
 
     let audio: VideoInfo['audio'] = null
     if (audioTrack) {
-      const [codec, sampleRate, channels] = await Promise.all([
+      const [codec, sampleRate, channels, config, decodable] = await Promise.all([
         audioTrack.getCodec(),
         audioTrack.getSampleRate(),
         audioTrack.getNumberOfChannels(),
+        audioTrack.getDecoderConfig().catch(() => null),
+        audioTrack.canDecode().catch(() => false),
       ])
       // An audio codec Mediabunny can't name is treated as no audio rather than failing the clip.
-      if (codec) audio = { codec, sampleRate, channels }
+      if (codec) audio = { codec, sampleRate, channels, copyable: !!config, decodable }
     }
 
     return { duration, width, height, fps, rotation, videoCodec, canDecode, audio }
