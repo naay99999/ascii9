@@ -6,6 +6,8 @@ export const VIDEO_READ_ERROR = "Couldn't read that video."
 
 export interface OpenVideoOptions {
   mobile: boolean
+  /** Asked for every frame: false closes it instead of drawing it (see frameAccepter). */
+  accept: (player: Player) => boolean
   onFrame: PlayerOptions['onFrame']
   canTakeFrame: PlayerOptions['canTakeFrame']
   /** True once a newer load has started; the clip is then dropped. */
@@ -29,7 +31,14 @@ export async function openVideo(file: File, opts: OpenVideoOptions): Promise<{ i
   if (!check.ok) throw new Error(check.message)
 
   opts.beforePlayer?.()
-  const player = createPlayer(file, { onFrame: opts.onFrame, canTakeFrame: opts.canTakeFrame, fps: info.fps ?? 30 })
+  const player: Player = createPlayer(file, {
+    onFrame: (bitmap, time) => {
+      if (opts.accept(player)) opts.onFrame(bitmap, time)
+      else bitmap.close()
+    },
+    canTakeFrame: opts.canTakeFrame,
+    fps: info.fps ?? 30,
+  })
   try {
     await player.ready
   } catch {
@@ -42,4 +51,11 @@ export async function openVideo(file: File, opts: OpenVideoOptions): Promise<{ i
     return null
   }
   return { info, player }
+}
+
+/** Frame gate for one load. A player may draw while it is the clip on the stage, or while its load
+ * is still the latest one (it is being opened and will become that clip). So the current clip keeps
+ * drawing while a newer file is probed or rejected, and an overtaken or replaced clip never draws. */
+export function frameAccepter(current: () => Player | null | undefined, isLatestLoad: () => boolean): (player: Player) => boolean {
+  return (player) => player === current() || isLatestLoad()
 }

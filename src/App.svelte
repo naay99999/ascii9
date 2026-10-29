@@ -17,7 +17,7 @@
   import ConvertWorker from './worker/convert.worker?worker'
   import type { VideoInfo } from './video/probe'
   import type { Player } from './video/player'
-  import { openVideo, VIDEO_READ_ERROR } from './video/open'
+  import { openVideo, frameAccepter, VIDEO_READ_ERROR } from './video/open'
 
   const ART_FONT = '400 16px "JetBrains Mono"' // taste-skill-ignore: the ASCII art itself is set in a monospace face (spec 4.2)
 
@@ -192,8 +192,14 @@
         // The old clip stops only once the new one passed its checks.
         beforePlayer: closeVideo,
         canTakeFrame: () => !!converter?.idle(),
+        // Gate on the player, not loadSeq alone: the clip on stage keeps drawing while a newer file
+        // is probed, and keeps going if that file is rejected.
+        accept: frameAccepter(
+          () => video?.player,
+          () => seq === loadSeq,
+        ),
         onFrame: (bitmap) => {
-          if (seq !== loadSeq || !converter) {
+          if (!converter) {
             bitmap.close()
             return
           }
