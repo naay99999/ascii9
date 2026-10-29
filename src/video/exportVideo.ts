@@ -40,9 +40,9 @@ export type VideoSinkFactory = (
   media: { codec: 'avc' | 'vp9' | 'vp8'; audio: AudioFeed | null },
 ) => VideoSink | Promise<VideoSink>
 
-type AnyCanvas = OffscreenCanvas | HTMLCanvasElement
+export type AnyCanvas = OffscreenCanvas | HTMLCanvasElement
 
-function makeCanvas(w: number, h: number): AnyCanvas {
+export function makeCanvas(w: number, h: number): AnyCanvas {
   if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(w, h)
   const c = document.createElement('canvas')
   c.width = w
@@ -50,7 +50,7 @@ function makeCanvas(w: number, h: number): AnyCanvas {
   return c
 }
 
-function context(canvas: AnyCanvas, readBack: boolean): Ctx2D {
+export function context(canvas: AnyCanvas, readBack: boolean): Ctx2D {
   const ctx = canvas.getContext('2d', readBack ? { willReadFrequently: true } : undefined) as Ctx2D | null
   if (!ctx) throw new Error('2D canvas unavailable')
   return ctx
@@ -93,9 +93,9 @@ export async function loadExportFont(): Promise<void> {
 }
 
 /** Lets Cancel clicks and progress repaints through between frames. */
-const yieldToEventLoop = () => new Promise<void>((r) => setTimeout(r, 0))
+export const yieldToEventLoop = () => new Promise<void>((r) => setTimeout(r, 0))
 
-const aborted = () => new DOMException('Aborted', 'AbortError')
+export const aborted = () => new DOMException('Aborted', 'AbortError')
 
 /** Renders every output frame of the clip as ASCII and encodes it to MP4 or WebM, with the original
  * sound when asked for and possible. */

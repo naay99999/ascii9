@@ -11,7 +11,7 @@ declare module 'gifenc' {
   export interface GifEncoder {
     writeFrame(index: Uint8Array, width: number, height: number, opts?: GifWriteOptions): void
     finish(): void
-    bytes(): Uint8Array
+    bytes(): Uint8Array<ArrayBuffer>
   }
 
   export function GIFEncoder(opts?: { initialCapacity?: number; auto?: boolean }): GifEncoder
