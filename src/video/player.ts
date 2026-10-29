@@ -23,6 +23,25 @@ export interface PlayerOptions {
 
 /** Minimum gap between time-only onstate calls. */
 const TIME_STATE_MS = 250
+/** How long the first frame may take before the clip counts as unreadable. */
+export const READY_TIMEOUT_MS = 10_000
+/** Longest edge of a preview frame grab. The converter shrinks it to the grid anyway, so reading a
+ * 4K frame back at full size would only cost time and memory. */
+export const GRAB_MAX_EDGE = 1280
+
+/** Resize options for a preview grab of a `width` × `height` (display-oriented) frame: the long edge
+ * capped at GRAB_MAX_EDGE with the aspect kept, or undefined when the frame is already small enough
+ * (never upscaled) or its size isn't known yet. */
+export function grabOptions(width: number, height: number): ImageBitmapOptions | undefined {
+  const long = Math.max(width, height)
+  if (!(width > 0 && height > 0) || long <= GRAB_MAX_EDGE) return undefined
+  const scale = GRAB_MAX_EDGE / long
+  return {
+    resizeWidth: Math.max(1, Math.round(width * scale)),
+    resizeHeight: Math.max(1, Math.round(height * scale)),
+    resizeQuality: 'medium',
+  }
+}
 
 type FrameVideo = HTMLVideoElement & {
   requestVideoFrameCallback?: (cb: (now: number, meta: { mediaTime: number }) => void) => number
@@ -54,6 +73,8 @@ export function createPlayer(file: Blob, opts: PlayerOptions): Player {
   })
   video.src = url
   document.body?.appendChild(video)
+  // iOS Safari may not fetch any media data (so loadeddata never fires) until load() or play().
+  video.load()
 
   let disposed = false
   /** A playing-frame grab is under way; another one would just queue up behind it. */
@@ -75,7 +96,8 @@ export function createPlayer(file: Blob, opts: PlayerOptions): Player {
     if (!force && (grabbing || !opts.canTakeFrame())) return
     const time = video.currentTime
     grabbing = true
-    createImageBitmap(video).then(
+    const size = grabOptions(video.videoWidth, video.videoHeight)
+    ;(size ? createImageBitmap(video, size) : createImageBitmap(video)).then(
       (bitmap) => {
         grabbing = false
         if (disposed) bitmap.close()
@@ -143,16 +165,41 @@ export function createPlayer(file: Blob, opts: PlayerOptions): Player {
   })
   // Callers may never await ready (e.g. disposed early); don't surface that as unhandled.
   ready.catch(() => {})
+  /** A muted play() started only to make the browser fetch the first frame; paused once it arrives. */
+  let nudging = false
+  let readyTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+    readyTimer = null
+    fail(new Error("Couldn't play that video."))
+  }, READY_TIMEOUT_MS)
+  function clearReadyTimer(): void {
+    if (readyTimer !== null) clearTimeout(readyTimer)
+    readyTimer = null
+  }
+  function fail(e: Error): void {
+    clearReadyTimer()
+    settleReady?.reject(e)
+    settleReady = null
+  }
+  const onMetadata = () => {
+    // Muted inline playback is allowed without a tap on iOS, and it makes Safari load the data
+    // even where preload is ignored. Paused again as soon as the first frame is there.
+    if (disposed || !settleReady || !video.paused) return
+    nudging = true
+    video.play()?.catch(() => {})
+  }
   const onLoaded = () => {
+    clearReadyTimer()
+    if (nudging) {
+      nudging = false
+      video.pause()
+    }
     settleReady?.resolve()
     settleReady = null
     grab(true)
     emit()
   }
-  const onError = () => {
-    settleReady?.reject(new Error("Couldn't play that video."))
-    settleReady = null
-  }
+  const onError = () => fail(new Error("Couldn't play that video."))
+  video.addEventListener('loadedmetadata', onMetadata)
   video.addEventListener('loadeddata', onLoaded)
   video.addEventListener('error', onError)
   watchFrames()
@@ -206,10 +253,10 @@ export function createPlayer(file: Blob, opts: PlayerOptions): Player {
       if (rafHandle !== null) cancelAnimationFrame(rafHandle)
       frameHandle = rafHandle = null
       for (const [type, fn] of Object.entries(listeners)) video.removeEventListener(type, fn)
+      video.removeEventListener('loadedmetadata', onMetadata)
       video.removeEventListener('loadeddata', onLoaded)
       video.removeEventListener('error', onError)
-      settleReady?.reject(new Error('disposed'))
-      settleReady = null
+      fail(new Error('disposed'))
       video.pause()
       // Dropping the source releases the decoder before the element is garbage-collected.
       video.removeAttribute('src')

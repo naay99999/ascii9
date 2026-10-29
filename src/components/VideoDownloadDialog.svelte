@@ -5,6 +5,7 @@
 <script lang="ts">
   import { tick } from 'svelte'
   import { gifSize } from '../engine/layout'
+  import { exclusive } from '../lib/exclusive'
   import { fileName } from '../render/export'
   import { audioPlan } from '../video/audioPlan'
   import { deliveryMode, shareFile } from '../video/deliver'
@@ -35,6 +36,11 @@
   ]
   const EXPORT_ERROR = "Couldn't export that video."
 
+  /** Keeps the real cause in the console; the user only sees the short message. A cancel isn't one. */
+  function logError(e: unknown) {
+    if ((e as { name?: unknown } | null)?.name !== 'AbortError') console.error(e)
+  }
+
   let dlg = $state<HTMLDialogElement>()
   let opener: HTMLElement | null = null
   const titleId = $props.id()
@@ -48,6 +54,8 @@
   let message = $state('')
   /** A finished file waiting for the Save to Photos tap (phones that can share files). */
   let pending = $state.raw<File | null>(null)
+  /** The PNG save or the share sheet is opening: a second tap must not start another. */
+  let busy = $state(false)
   let controller: AbortController | null = null
   /** The Start / Cancel / Save to Photos slot: it swaps buttons, so focus follows into the new one. */
   let actions = $state<HTMLDivElement>()
@@ -100,7 +108,10 @@
     let stale = false
     support = null
     exportSupport(at)
-      .catch(() => ({ mp4: false, webm: false, aacEncode: false, opusEncode: false, webmCodec: null }) satisfies ExportSupport)
+      .catch((e: unknown) => {
+        logError(e)
+        return { mp4: false, webm: false, aacEncode: false, opusEncode: false, webmCodec: null } satisfies ExportSupport
+      })
       .then((s) => {
         if (stale) return
         support = s
@@ -142,19 +153,24 @@
     message = ''
   }
 
-  async function start() {
-    if (running || !supported(choice)) return
-    reset()
-    if (choice === 'png') {
+  const saveFrame = exclusive(
+    async () => {
       try {
         await savePng()
         phase = 'done'
         message = 'Saved'
-      } catch {
+      } catch (e) {
+        logError(e)
         message = "Couldn't save that frame."
       }
-      return
-    }
+    },
+    (b) => (busy = b),
+  )
+
+  async function start() {
+    if (running || busy || !supported(choice)) return
+    reset()
+    if (choice === 'png') return saveFrame()
     const format = choice
     const ac = new AbortController()
     controller = ac
@@ -165,9 +181,10 @@
       blob = await run(format, sound && !soundOff, (p) => {
         if (controller === ac) progress = p
       }, ac.signal)
-    } catch {
+    } catch (e) {
       // Cancel (or a close from outside) is not an error: reset() already put the dialog back to idle.
       if (controller !== ac || ac.signal.aborted) return
+      logError(e)
       controller = null
       phase = 'idle'
       message = EXPORT_ERROR
@@ -190,16 +207,21 @@
     void refocus()
   }
 
-  async function saveToPhotos() {
-    const file = pending
-    if (!file) return
-    const result = await shareFile(navigator, file)
-    if (result === 'closed') return // the user closed the sheet; the button stays
-    if (result === 'failed') deliver(file, file.name)
-    pending = null
-    message = 'Saved'
-    void refocus()
-  }
+  // exclusive: a second tap while the sheet opens would make share() fail and download a copy.
+  // shareFile calls navigator.share before its first await, so it stays inside the tap.
+  const saveToPhotos = exclusive(
+    async () => {
+      const file = pending
+      if (!file) return
+      const result = await shareFile(navigator, file)
+      if (result === 'closed') return // the user closed the sheet; the button stays
+      if (result === 'failed') deliver(file, file.name)
+      pending = null
+      message = 'Saved'
+      void refocus()
+    },
+    (b) => (busy = b),
+  )
 
   function cancel() {
     reset()
@@ -288,9 +310,9 @@
       <div class="actions" bind:this={actions}>
         <p class="status" role="status">{message}</p>
         {#if pending}
-          <button type="button" class="primary" onclick={() => void saveToPhotos()}>Save to Photos</button>
+          <button type="button" class="primary" disabled={busy} onclick={() => void saveToPhotos()}>Save to Photos</button>
         {:else}
-          <button type="button" class="primary" disabled={!supported(choice)} onclick={() => void start()}>Start</button>
+          <button type="button" class="primary" disabled={busy || !supported(choice)} onclick={() => void start()}>Start</button>
         {/if}
       </div>
     {/if}

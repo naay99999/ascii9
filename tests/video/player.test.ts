@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createPlayer } from '../../src/video/player'
+import { createPlayer, grabOptions, READY_TIMEOUT_MS } from '../../src/video/player'
 
 type Listener = () => void
 
@@ -17,10 +17,16 @@ function fakeVideo() {
     paused: true,
     currentTime: 0,
     duration: 10,
+    videoWidth: 0,
+    videoHeight: 0,
     style: {} as Record<string, string>,
     setAttribute: vi.fn(),
     removeAttribute: vi.fn(),
-    load: vi.fn(),
+    /** The src each load() call saw. */
+    loads: [] as string[],
+    load: vi.fn(() => {
+      v.loads.push(v.src)
+    }),
     remove: vi.fn(),
     play: vi.fn(async () => {
       v.paused = false
@@ -114,5 +120,83 @@ describe('createPlayer', () => {
     await flush()
     expect(onFrame).not.toHaveBeenCalled()
     expect(late.close).toHaveBeenCalled()
+  })
+
+  it('starts loading right after the source is set', () => {
+    createPlayer(new Blob(), { onFrame: () => {}, canTakeFrame: () => true, fps: 30 })
+    expect(fake.v.loads).toEqual(['blob:clip'])
+  })
+
+  it('rejects ready when the first frame never arrives', async () => {
+    vi.useFakeTimers()
+    try {
+      const p = createPlayer(new Blob(), { onFrame: () => {}, canTakeFrame: () => true, fps: 30 })
+      const settled = vi.fn()
+      p.ready.then(() => settled('ok'), (e: Error) => settled(e.message))
+      await vi.advanceTimersByTimeAsync(READY_TIMEOUT_MS - 1)
+      expect(settled).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(settled).toHaveBeenCalledWith("Couldn't play that video.")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('clears the ready timeout on dispose and once the first frame is in', async () => {
+    vi.useFakeTimers()
+    try {
+      const disposed = createPlayer(new Blob(), { onFrame: () => {}, canTakeFrame: () => true, fps: 30 })
+      disposed.dispose()
+      expect(vi.getTimerCount()).toBe(0)
+
+      fake = fakeVideo()
+      const p = createPlayer(new Blob(), { onFrame: () => {}, canTakeFrame: () => true, fps: 30 })
+      expect(vi.getTimerCount()).toBe(1)
+      fake.fire('loadeddata')
+      expect(vi.getTimerCount()).toBe(0)
+      await expect(p.ready).resolves.toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('nudges a stalled load with a muted play and pauses once the first frame is in', async () => {
+    const p = createPlayer(new Blob(), { onFrame: () => {}, canTakeFrame: () => true, fps: 30 })
+    fake.fire('loadedmetadata')
+    expect(fake.v.play).toHaveBeenCalledTimes(1)
+    expect(fake.v.muted).toBe(true)
+    await flush()
+    fake.fire('loadeddata')
+    expect(fake.v.pause).toHaveBeenCalled()
+    expect(p.playing).toBe(false)
+    await expect(p.ready).resolves.toBeUndefined()
+  })
+
+  it('grabs a 4K frame at a long edge of 1280, aspect kept', async () => {
+    fake.v.videoWidth = 3840
+    fake.v.videoHeight = 2160
+    createPlayer(new Blob(), { onFrame: () => {}, canTakeFrame: () => true, fps: 30 })
+    fake.fire('seeked')
+    await flush()
+    expect(createImageBitmap).toHaveBeenCalledWith(fake.v, { resizeWidth: 1280, resizeHeight: 720, resizeQuality: 'medium' })
+  })
+
+  it('grabs a small frame as is, never upscaled', async () => {
+    fake.v.videoWidth = 640
+    fake.v.videoHeight = 360
+    createPlayer(new Blob(), { onFrame: () => {}, canTakeFrame: () => true, fps: 30 })
+    fake.fire('seeked')
+    await flush()
+    expect(vi.mocked(createImageBitmap).mock.calls).toEqual([[fake.v]])
+  })
+})
+
+describe('grabOptions', () => {
+  it('caps the long edge of portrait frames too', () => {
+    expect(grabOptions(2160, 3840)).toEqual({ resizeWidth: 720, resizeHeight: 1280, resizeQuality: 'medium' })
+  })
+  it('leaves frames up to the cap, and frames of unknown size, alone', () => {
+    expect(grabOptions(1280, 720)).toBeUndefined()
+    expect(grabOptions(0, 0)).toBeUndefined()
   })
 })
