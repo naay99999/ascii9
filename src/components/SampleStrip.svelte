@@ -20,7 +20,7 @@
     {/each}
   </div>
   <span class="sep" aria-hidden="true">·</span>
-  <button type="button" class="choose" onclick={() => picker.click()}>Choose your image</button>
+  <button type="button" class="choose" onclick={() => picker.click()}>Choose image or video</button>
   <input
     bind:this={picker}
     type="file"

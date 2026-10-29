@@ -190,7 +190,8 @@
     let result: Awaited<ReturnType<typeof openVideo>>
     try {
       result = await openVideo(file, {
-        mobile,
+        // Tablets get the phone length limit too: an iPad runs out of memory like an iPhone.
+        mobile: mobile || window.matchMedia('(pointer: coarse)').matches,
         stale: () => seq !== loadSeq,
         // The old clip stops only once the new one passed its checks.
         beforePlayer: closeVideo,

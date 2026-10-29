@@ -1,5 +1,5 @@
 import { describe, expect, it, test } from 'vitest'
-import { FRAME_SIZES, gridSize, exportSize, videoExportSize, gifSize, outputFps, frameTimes } from '../../src/engine/layout'
+import { FRAME_SIZES, gridSize, exportSize, videoExportSize, gifSize, outputFps, frameTimes, gifDelays } from '../../src/engine/layout'
 import type { LayoutSettings } from '../../src/engine/types'
 
 const L = (o: Partial<LayoutSettings>) => ({ detail:80, frame:'original', fit:'fill', flipH:false, ...o }) as LayoutSettings
@@ -134,3 +134,19 @@ describe('video sizing and timing', () => {
   })
   test('frameTimes has at least one frame', () => expect(frameTimes(0.01, 30)).toHaveLength(1))
 })
+
+describe('gifDelays', () => {
+  it('spreads centisecond rounding so the GIF lasts as long as the clip', () => {
+    const d = gifDelays(15, 15)
+    expect(d).toHaveLength(15)
+    expect(d.reduce((a, b) => a + b, 0)).toBe(1000)
+    for (const x of d) expect([60, 70]).toContain(x)
+  })
+  it('keeps exact delays when the frame time is a whole centisecond', () => {
+    expect(gifDelays(4, 10)).toEqual([100, 100, 100, 100])
+  })
+  it('never writes a zero delay', () => {
+    expect(Math.min(...gifDelays(200, 120))).toBeGreaterThan(0)
+  })
+})
+

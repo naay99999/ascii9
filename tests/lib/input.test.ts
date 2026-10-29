@@ -75,7 +75,7 @@ describe('imageFromDrop', () => {
   })
 })
 
-import { validateMedia, checkDuration, mediaFromDrop } from '../../src/lib/input'
+import { validateMedia, checkDuration, mediaFromDrop, mediaKind } from '../../src/lib/input'
 
 describe('media (video support)', () => {
   const MB = 1024 * 1024
@@ -106,5 +106,27 @@ describe('media (video support)', () => {
     const vid = { type: 'video/mp4' } as File
     expect(mediaFromDrop({ files: [txt, vid] })).toBe(vid)
     expect(mediaFromDrop({ files: [txt] })).toBeNull()
+  })
+  it('mediaKind falls back to the file extension when the type is missing or generic', () => {
+    expect(mediaKind({ type: '', name: 'clip.MOV' })).toBe('video')
+    expect(mediaKind({ type: 'application/octet-stream', name: 'clip.mp4' })).toBe('video')
+    expect(mediaKind({ type: '', name: 'a.webm' })).toBe('video')
+    expect(mediaKind({ type: '', name: 'a.m4v' })).toBe('video')
+    expect(mediaKind({ type: '', name: 'photo.jpeg' })).toBe('image')
+    expect(mediaKind({ type: '', name: 'notes.txt' })).toBeNull()
+    expect(mediaKind({ type: '', name: 'mp4' })).toBeNull()
+    expect(mediaKind({ type: '' })).toBeNull()
+  })
+  it('mediaKind trusts a specific type over the extension', () => {
+    expect(mediaKind({ type: 'text/plain', name: 'clip.mp4' })).toBeNull()
+  })
+  it('validateMedia accepts a typeless file by its extension and applies its size limit', () => {
+    expect(validateMedia({ type: '', name: 'clip.mov', size: 1 })).toEqual({ ok: true, kind: 'video' })
+    expect(validateMedia({ type: '', name: 'p.png', size: 1 })).toEqual({ ok: true, kind: 'image' })
+    expect(validateMedia({ type: '', name: 'p.png', size: 10 * MB + 1 })).toEqual({ ok: false, message: 'That image is over 10 MB.' })
+  })
+  it('mediaFromDrop takes a typeless video by its extension', () => {
+    const vid = { type: '', name: 'clip.mov' } as File
+    expect(mediaFromDrop({ files: [vid] })).toBe(vid)
   })
 })

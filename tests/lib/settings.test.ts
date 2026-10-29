@@ -22,7 +22,7 @@ describe('loadSettings', () => {
     expect(s.look.style).toBe('ascii')
   })
   it('clamps numbers', () => {
-    expect(loadSettings(store('{"layout":{"detail":999}}')).layout.detail).toBe(200)
+    expect(loadSettings(store('{"layout":{"detail":999}}')).layout.detail).toBe(400)
     expect(loadSettings(store('{"layout":{"detail":3}}')).layout.detail).toBe(20)
     const l = loadSettings(store('{"look":{"gamma":9,"saturation":-5,"brightness":-500,"edgeIntensity":500}}')).look
     expect([l.gamma, l.saturation, l.brightness, l.edgeIntensity]).toEqual([2.5, 0, -100, 100])

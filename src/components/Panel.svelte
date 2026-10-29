@@ -64,7 +64,7 @@
     <Slider
       label="Detail"
       min={20}
-      max={200}
+      max={400}
       step={5}
       value={layout.detail}
       display="{layout.detail} columns"

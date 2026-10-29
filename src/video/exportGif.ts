@@ -1,4 +1,4 @@
-import { frameTimes, GIF_FPS_CAP, gifSize, gridSize, outputFps, videoExportSize } from '../engine/layout'
+import { frameTimes, gifDelays, GIF_FPS_CAP, gifSize, gridSize, outputFps, videoExportSize } from '../engine/layout'
 import {
   aborted,
   context,
@@ -24,7 +24,7 @@ export async function exportGif(
   const size = gifSize(full)
   const fps = outputFps(info.fps, GIF_FPS_CAP)
   const times = frameTimes(info.duration, fps)
-  const delay = Math.round(1000 / fps)
+  const delays = gifDelays(times.length, fps)
 
   const { GIFEncoder, quantize, applyPalette } = await import('gifenc')
   await loadExportFont()
@@ -43,7 +43,7 @@ export async function exportGif(
     const { data } = out.getImageData(0, 0, size[0], size[1])
     const palette = quantize(data, 256)
     // repeat: 0 loops forever; it is written once, with the first frame.
-    gif.writeFrame(applyPalette(data, palette), size[0], size[1], { palette, delay, ...(i === 0 ? { repeat: 0 } : {}) })
+    gif.writeFrame(applyPalette(data, palette), size[0], size[1], { palette, delay: delays[i], ...(i === 0 ? { repeat: 0 } : {}) })
     i++
     opts.onProgress(i / times.length)
     await yieldToEventLoop()

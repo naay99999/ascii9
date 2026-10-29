@@ -95,3 +95,18 @@ export function frameTimes(duration: number, fps: number): number[] {
   const n = Math.max(1, Math.ceil(duration * fps - 1e-6))
   return Array.from({ length: n }, (_, i) => i / fps)
 }
+
+/** Per-frame GIF delays in ms. A GIF stores whole centiseconds, so each delay is rounded against the
+ * running total rather than on its own: at 15 fps the frames alternate 70/60 ms instead of all being
+ * 70 ms, and the GIF lasts as long as the clip. */
+export function gifDelays(count: number, fps: number): number[] {
+  const out: number[] = []
+  let prev = 0
+  for (let i = 1; i <= count; i++) {
+    const cs = Math.round((i * 100) / fps)
+    out.push(Math.max(1, cs - prev) * 10)
+    prev = cs
+  }
+  return out
+}
+

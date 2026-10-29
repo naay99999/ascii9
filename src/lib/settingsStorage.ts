@@ -47,7 +47,7 @@ export function sanitizeSettings(raw: unknown): Settings {
       edgeIntensity: num(l.edgeIntensity, 0, 100, d.look.edgeIntensity),
     },
     layout: {
-      detail: num(y.detail, 20, 200, d.layout.detail),
+      detail: num(y.detail, 20, 400, d.layout.detail),
       frame: oneOf(y.frame, FRAMES, d.layout.frame),
       fit: oneOf(y.fit, FITS, d.layout.fit),
       flipH: bool(y.flipH, d.layout.flipH),

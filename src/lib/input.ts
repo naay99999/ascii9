@@ -69,19 +69,30 @@ export const MAX_VIDEO_SECONDS = { desktop: 60, mobile: 30 }
 
 export type MediaKind = 'image' | 'video'
 
-export function mediaKind(f: { type: string }): MediaKind | null {
-  if (typeof f.type !== 'string') return null
-  if (f.type.startsWith('image/')) return 'image'
-  if (f.type.startsWith('video/')) return 'video'
-  return null
+/** File extensions to go by when the browser gives no specific type (some drops and pickers
+ * report '' or application/octet-stream). */
+const EXTENSIONS: Record<string, MediaKind> = {
+  mp4: 'video', mov: 'video', m4v: 'video', webm: 'video',
+  jpg: 'image', jpeg: 'image', png: 'image', webp: 'image', gif: 'image', avif: 'image', bmp: 'image',
 }
 
-export function validateMedia(f: { type: string; size: number }): { ok: true; kind: MediaKind } | { ok: false; message: string } {
+export function mediaKind(f: { type: string; name?: string }): MediaKind | null {
+  const type = typeof f.type === 'string' ? f.type : ''
+  if (type.startsWith('image/')) return 'image'
+  if (type.startsWith('video/')) return 'video'
+  if (type !== '' && type !== 'application/octet-stream') return null
+  const m = typeof f.name === 'string' ? /\.([a-z0-9]+)$/i.exec(f.name) : null
+  return (m && EXTENSIONS[m[1].toLowerCase()]) || null
+}
+
+export function validateMedia(
+  f: { type: string; name?: string; size: number },
+): { ok: true; kind: MediaKind } | { ok: false; message: string } {
   const kind = mediaKind(f)
   if (!kind) return { ok: false, message: "That file isn't an image or video." }
   if (kind === 'image') {
-    const r = validateFile(f)
-    return r.ok ? { ok: true, kind } : r
+    if (f.size > MAX_BYTES) return { ok: false, message: 'That image is over 10 MB.' }
+    return { ok: true, kind }
   }
   if (f.size > MAX_VIDEO_BYTES) return { ok: false, message: 'That video is over 200 MB.' }
   return { ok: true, kind }
