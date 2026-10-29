@@ -108,6 +108,11 @@ export function createConverter(
   }
 
   return {
+    /** True when no convert is in flight, queued or waiting for its tick, so a new video frame can
+     * go out without piling up behind older ones. Auto-adjust requests are not counted. */
+    idle(): boolean {
+      return inFlight === null && queued === null && timer === null
+    },
     /** Hands the bitmap to the worker (transferred: it is detached afterwards). Returns the image
      * number later requests for it are tagged with (`Used.image`). */
     setImage(bitmap: ImageBitmap): number {

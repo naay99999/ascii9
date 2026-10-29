@@ -265,3 +265,21 @@ it('imageBase continues the image numbering for a replacement converter', () => 
   const c = createConverter(w, () => {}, { imageBase: 7 })
   expect(c.setImage(bitmap)).toBe(8)
 })
+
+describe('createConverter idle', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  // The video player only hands over a new frame when the converter has nothing to do.
+  it('is idle initially, busy once a request is made, idle again after the grid reply', () => {
+    const { w, reply, converts } = fakeWorker()
+    const c = createConverter(w, () => {})
+    expect(c.idle()).toBe(true)
+    c.request(withDetail(10), 0.6)
+    expect(c.idle()).toBe(false)
+    vi.advanceTimersByTime(0)
+    expect(c.idle()).toBe(false)
+    reply({ type: 'grid', id: converts()[0].id, grid: grid(1), plan })
+    expect(c.idle()).toBe(true)
+  })
+})
