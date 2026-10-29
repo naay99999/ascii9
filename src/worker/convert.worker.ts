@@ -1,7 +1,6 @@
 /// <reference lib="webworker" />
-import { convert } from '../engine/convert'
 import { autoAdjust } from '../engine/autoAdjust'
-import { gridSize } from '../engine/layout'
+import { gridFromSource } from '../engine/sample'
 import type { FromWorker, ToWorker } from '../lib/converter'
 
 let bitmap: ImageBitmap | null = null
@@ -29,16 +28,7 @@ self.onmessage = (e: MessageEvent<ToWorker>) => {
     if (!bitmap) throw new Error('No image loaded')
     if (msg.type === 'convert') {
       const { settings, cellAspect } = msg
-      const plan = gridSize(bitmap.width, bitmap.height, settings.layout, cellAspect)
-      const { cols, rows, crop } = plan
-      const ctx = ctx2d(cols, rows)
-      if (settings.layout.flipH) {
-        ctx.translate(cols, 0)
-        ctx.scale(-1, 1)
-      }
-      ctx.drawImage(bitmap, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, cols, rows)
-      const data = ctx.getImageData(0, 0, cols, rows).data
-      const grid = convert(data, cols, rows, settings.look)
+      const { grid, plan } = gridFromSource(bitmap, bitmap.width, bitmap.height, settings, cellAspect, ctx2d)
       post({ type: 'grid', id: msg.id, grid, plan }, [grid.index.buffer, grid.rgb.buffer])
     } else if (msg.type === 'auto') {
       const w = 200
