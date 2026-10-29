@@ -58,3 +58,40 @@ export function exportSize(layout: LayoutSettings, plan: GridPlan, cellAspect: n
   const k = ORIGINAL_LONG_EDGE / Math.max(w, h)
   return [Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k))]
 }
+
+export const VIDEO_LONG_EDGE = 1920
+export const GIF_LONG_EDGE = 720
+export const VIDEO_FPS_CAP = 30
+export const GIF_FPS_CAP = 15
+
+const even = (n: number) => Math.max(2, Math.round(n / 2) * 2)
+
+/** Video frame size: the image table with 16:9 at 1920x1080 and Original capped at 1920; sides are even. */
+export function videoExportSize(layout: LayoutSettings, plan: GridPlan, cellAspect: number): [number, number] {
+  if (layout.frame === '16:9') return [1920, 1080]
+  if (layout.frame !== 'original') {
+    const [w, h] = exportSize(layout, plan, cellAspect)
+    return [even(w), even(h)]
+  }
+  const w = plan.cols * cellAspect
+  const h = plan.rows
+  const k = VIDEO_LONG_EDGE / Math.max(w, h)
+  return [even(w * k), even(h * k)]
+}
+
+/** Scale down so the long edge is at most GIF_LONG_EDGE; never upscales. */
+export function gifSize(size: [number, number]): [number, number] {
+  const k = Math.min(1, GIF_LONG_EDGE / Math.max(size[0], size[1]))
+  return [Math.max(1, Math.round(size[0] * k)), Math.max(1, Math.round(size[1] * k))]
+}
+
+/** Source fps capped at `cap`; unknown or invalid sources use the cap. */
+export function outputFps(sourceFps: number | null, cap: number): number {
+  return sourceFps && sourceFps > 0 ? Math.min(sourceFps, cap) : cap
+}
+
+/** Sample times in seconds, at least one frame. */
+export function frameTimes(duration: number, fps: number): number[] {
+  const n = Math.max(1, Math.ceil(duration * fps - 1e-6))
+  return Array.from({ length: n }, (_, i) => i / fps)
+}

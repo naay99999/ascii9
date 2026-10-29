@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'vitest'
-import { FRAME_SIZES, gridSize, exportSize } from '../../src/engine/layout'
+import { describe, expect, it, test } from 'vitest'
+import { FRAME_SIZES, gridSize, exportSize, videoExportSize, gifSize, outputFps, frameTimes } from '../../src/engine/layout'
 import type { LayoutSettings } from '../../src/engine/types'
 
 const L = (o: Partial<LayoutSettings>) => ({ detail:80, frame:'original', fit:'fill', flipH:false, ...o }) as LayoutSettings
@@ -96,4 +96,41 @@ describe('exportSize gaps', () => {
     expect(p).toEqual({ cols: 20, rows: 12, crop: { sx: 0, sy: 0, sw: 1, sh: 1 } })
     expect(exportSize(l, p, 0.6)).toEqual([2048, 2048])
   })
+})
+
+describe('video sizing and timing', () => {
+  const plan = (cols: number, rows: number) => ({ cols, rows, crop: { sx: 0, sy: 0, sw: 1, sh: 1 } })
+  test('videoExportSize frames', () => {
+    expect(videoExportSize(L({ frame: '1:1' }), plan(80, 80), 0.6)).toEqual([1080, 1080])
+    expect(videoExportSize(L({ frame: '4:5' }), plan(80, 80), 0.6)).toEqual([1080, 1350])
+    expect(videoExportSize(L({ frame: '9:16' }), plan(80, 80), 0.6)).toEqual([1080, 1920])
+    expect(videoExportSize(L({ frame: '16:9' }), plan(80, 80), 0.6)).toEqual([1920, 1080])
+  })
+  test('videoExportSize original has long edge 1920 and even sides', () => {
+    expect(videoExportSize(L({}), plan(80, 41), 0.6)).toEqual([1920, 1640])
+  })
+  test('videoExportSize rounds an odd intermediate to even', () => {
+    // 79 cols at 0.6 = 47.4 wide, 41 rows: height 1660.76 -> 1660 (not odd 1661)
+    expect(videoExportSize(L({}), plan(79, 41), 0.6)).toEqual([1920, 1660])
+    expect(videoExportSize(L({}), plan(1, 1), 0.6)).toEqual([1152, 1920])
+  })
+  test('gifSize', () => {
+    expect(gifSize([1080, 1920])).toEqual([405, 720])
+    expect(gifSize([1920, 1080])).toEqual([720, 405])
+    expect(gifSize([600, 400])).toEqual([600, 400])
+  })
+  test('outputFps', () => {
+    expect(outputFps(59.94, 30)).toBe(30)
+    expect(outputFps(24, 30)).toBe(24)
+    expect(outputFps(null, 30)).toBe(30)
+    expect(outputFps(0, 30)).toBe(30)
+  })
+  it('frameTimes caps 60 fps sources at 30', () => {
+    const t = frameTimes(2, outputFps(60, 30))
+    expect(t).toHaveLength(60)
+    expect(t[0]).toBe(0)
+    expect(t[1]).toBeCloseTo(1 / 30)
+    expect(t[59]).toBeLessThan(2)
+  })
+  test('frameTimes has at least one frame', () => expect(frameTimes(0.01, 30)).toHaveLength(1))
 })
