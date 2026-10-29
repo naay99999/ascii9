@@ -12,8 +12,11 @@
     autoAdjust: () => Promise<AutoResult>
     save: (format: Format) => Promise<void>
     canSave: boolean
+    /** A clip is loaded: Download opens the video dialog instead of saving a still. */
+    video?: boolean
+    onvideodownload?: () => void
   }
-  let { autoAdjust, save, canSave }: Props = $props()
+  let { autoAdjust, save, canSave, video = false, onvideodownload }: Props = $props()
 
   const presetOptions = (Object.keys(PRESETS) as PresetId[]).map((id) => ({ value: id, label: PRESETS[id].label }))
   const FORMATS: { value: Format; label: string }[] = [
@@ -65,19 +68,25 @@
   <Chips scroll label="Look" options={presetOptions} value={preset === 'custom' ? null : preset} extra={preset === 'custom' ? 'Custom' : null} onchange={choosePreset} />
   <div class="actions">
     <button type="button" class="adjust" aria-haspopup="dialog" onclick={() => (adjustOpen = true)}>Adjust</button>
-    <div class="dl">
-      <button type="button" class="main" disabled={!canSave || saving} onclick={() => void download(format)}>Download {formatLabel}</button>
-      <button
-        type="button"
-        class="caret"
-        aria-label="Choose download format"
-        aria-haspopup="dialog"
-        disabled={!canSave}
-        onclick={() => (formatOpen = true)}
-      >
-        <svg width="12" height="12" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
-      </button>
-    </div>
+    {#if video}
+      <div class="dl">
+        <button type="button" class="main single" aria-haspopup="dialog" disabled={!canSave} onclick={() => onvideodownload?.()}>Download</button>
+      </div>
+    {:else}
+      <div class="dl">
+        <button type="button" class="main" disabled={!canSave || saving} onclick={() => void download(format)}>Download {formatLabel}</button>
+        <button
+          type="button"
+          class="caret"
+          aria-label="Choose download format"
+          aria-haspopup="dialog"
+          disabled={!canSave}
+          onclick={() => (formatOpen = true)}
+        >
+          <svg width="12" height="12" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        </button>
+      </div>
+    {/if}
   </div>
   <p class="status" role="status">{status}</p>
 </div>
@@ -136,6 +145,9 @@
     flex: 1;
     min-width: 0;
     border-radius: var(--radius-control) 0 0 var(--radius-control);
+  }
+  .main.single {
+    border-radius: var(--radius-control);
   }
   .caret {
     display: grid;

@@ -4,16 +4,20 @@
   import Stage from './components/Stage.svelte'
   import Panel from './components/Panel.svelte'
   import MobileDock from './components/MobileDock.svelte'
+  import Transport from './components/Transport.svelte'
   import type { Format } from './components/DownloadButton.svelte'
   import { settings } from './lib/settings.svelte'
-  import { validateFile, loadBitmap, imageFromClipboard, imageFromDrop } from './lib/input'
+  import { validateMedia, loadBitmap, imageFromClipboard, mediaFromDrop } from './lib/input'
   import { createConverter, type AutoResult, type Used, type WorkerLike } from './lib/converter'
   import { measureCellAspect } from './lib/measure'
   import { SAMPLES } from './lib/samples'
-  import { exportSize, type GridPlan } from './engine/layout'
+  import { exportSize, videoExportSize, type GridPlan } from './engine/layout'
   import { exportImage, fileName, gridToText } from './render/export'
   import type { Grid, Settings } from './engine/types'
   import ConvertWorker from './worker/convert.worker?worker'
+  import type { VideoInfo } from './video/probe'
+  import type { Player } from './video/player'
+  import { openVideo, VIDEO_READ_ERROR } from './video/open'
 
   const ART_FONT = '400 16px "JetBrains Mono"' // taste-skill-ignore: the ASCII art itself is set in a monospace face (spec 4.2)
 
@@ -24,6 +28,8 @@
   interface ImageMeta {
     sampleId: string | null
     blob: Blob
+    /** A frame of the loaded clip: sized for video export, and never re-decoded from `blob`. */
+    video?: boolean
   }
   let images = new Map<number, ImageMeta>()
   let latestImage = 0
@@ -56,6 +62,9 @@
   let error = $state('')
   let errorTimer: ReturnType<typeof setTimeout> | undefined
   let loadSeq = 0
+  /** The clip on the stage, if any. The player is not reactive: `playback` mirrors its state. */
+  let video = $state.raw<{ file: File; info: VideoInfo; player: Player } | null>(null)
+  let playback = $state({ playing: false, time: 0, duration: 0, muted: true })
   /** Phone layout below 768 px. Only the chrome around Stage changes; the converter and worker stay put. */
   let mobile = $state(typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches)
 
@@ -108,10 +117,11 @@
       errorClearsOnGrid = false
       clearTimeout(errorTimer)
     }
-    // exportSize may return a shared tuple: copy it.
-    const size = [...exportSize(used.settings.layout, p, used.cellAspect)] as [number, number]
-    shown = { grid: g, plan: p, used, size }
     const meta = images.get(used.image)
+    // exportSize may return a shared tuple: copy it.
+    const sizeOf = meta?.video ? videoExportSize : exportSize
+    const size = [...sizeOf(used.settings.layout, p, used.cellAspect)] as [number, number]
+    shown = { grid: g, plan: p, used, size }
     if (meta) {
       selectedSample = meta.sampleId
       if (meta.sampleId === null) userImage = true
@@ -161,16 +171,68 @@
     }
     showError('Something went wrong converting. Reloading the engine…') // stays its 4 s: still true after recovery
     startEngine()
-    if (keep) void useBlob(keep.blob, keep.sampleId, ++loadSeq)
+    if (video) {
+      // The player's next frame refills the new engine; a paused clip re-delivers its frame on seek.
+      if (!video.player.playing) video.player.seek(video.player.time)
+    } else if (keep && !keep.video) void useBlob(keep.blob, keep.sampleId, ++loadSeq)
+  }
+
+  function closeVideo() {
+    video?.player.dispose()
+    video = null
+  }
+
+  /** Probe, check and start a clip. Until it is ready the previous art (and clip) stay. */
+  async function useVideo(file: File, seq: number) {
+    let result: Awaited<ReturnType<typeof openVideo>>
+    try {
+      result = await openVideo(file, {
+        mobile,
+        stale: () => seq !== loadSeq,
+        // The old clip stops only once the new one passed its checks.
+        beforePlayer: closeVideo,
+        canTakeFrame: () => !!converter?.idle(),
+        onFrame: (bitmap) => {
+          if (seq !== loadSeq || !converter) {
+            bitmap.close()
+            return
+          }
+          // setImage transfers (detaches) the bitmap.
+          const n = converter.setImage(bitmap)
+          latestImage = n
+          images.set(n, { sampleId: null, blob: file, video: true })
+          for (const k of images.keys()) if (k !== n && k !== shown?.used.image) images.delete(k)
+          imageReady = true
+          imageVersion++
+        },
+      })
+    } catch (e) {
+      if (seq === loadSeq) showError(e instanceof Error ? e.message : VIDEO_READ_ERROR)
+      return
+    }
+    if (!result) return
+    const { player } = result
+    video = { file, ...result }
+    const sync = () => {
+      playback = { playing: player.playing, time: player.time, duration: player.duration, muted: player.muted }
+    }
+    player.onstate = sync
+    sync()
+    player.play().catch(() => sync()) // autoplay refused: stays paused with its first frame shown
   }
 
   function useFile(f: File) {
-    const check = validateFile(f)
+    const check = validateMedia(f)
     if (!check.ok) {
       showError(check.message)
       return
     }
-    const seq = ++loadSeq // the latest valid image request wins, whatever resolves first
+    const seq = ++loadSeq // the latest valid request wins, whatever resolves first
+    if (check.kind === 'video') {
+      void useVideo(f, seq)
+      return
+    }
+    closeVideo()
     void useBlob(f, null, seq)
   }
 
@@ -178,6 +240,7 @@
     const s = SAMPLES.find((x) => x.id === id)
     if (!s) return
     const seq = ++loadSeq
+    closeVideo()
     try {
       const res = await fetch(s.src)
       if (!res.ok) throw new Error(String(res.status))
@@ -224,6 +287,7 @@
     return () => {
       mq.removeEventListener('change', onMq)
       disposed = true
+      closeVideo()
       stopEngine()
       clearTimeout(errorTimer)
     }
@@ -310,21 +374,66 @@
     dropping = false
     const dt = e.dataTransfer
     if (!dt) return
-    const f = imageFromDrop(dt)
+    const f = mediaFromDrop(dt)
     if (f) useFile(f)
     else if (dt.files.length > 0) {
-      const first = dt.files[0]
-      const check = validateFile(first)
+      const check = validateMedia(dt.files[0])
       showError(check.ok ? "Couldn't read that image." : check.message)
     }
   }
+
+  // ---- Video keyboard: Space plays/pauses, Left/Right step a frame while paused ----
+  /** Controls that use Space or the arrow keys themselves keep them. */
+  const OWNS_SPACE = 'button, a[href], select, summary, input[type=checkbox], input[type=radio], [role=button], [role=switch], [role=radio], [role=menuitemradio]'
+  const OWNS_ARROWS = 'input, select, [role=radio], [role=menuitemradio], [role=slider], [role=tab]'
+
+  function onKeyDown(e: KeyboardEvent) {
+    if (!video || e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return
+    if (isTextTarget(e.target) || document.querySelector('dialog[open]')) return
+    const t = e.target instanceof Element ? e.target : null
+    const { player } = video
+    if (e.key === ' ' || e.code === 'Space') {
+      if (t?.closest(OWNS_SPACE)) return
+      e.preventDefault()
+      togglePlay()
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      if (player.playing || t?.closest(OWNS_ARROWS)) return
+      e.preventDefault()
+      player.step(e.key === 'ArrowLeft' ? -1 : 1)
+    }
+  }
+
+  function togglePlay() {
+    const p = video?.player
+    if (!p) return
+    if (p.playing) p.pause()
+    else p.play().catch(() => {})
+  }
+
+  function onVideoDownload() {
+    // The video export dialog (Task 8) opens from here.
+  }
 </script>
 
-<svelte:window onpaste={onPaste} ondragenter={onDragEnter} ondragover={onDragOver} ondragleave={onDragLeave} ondrop={onDrop} />
+<svelte:window onkeydown={onKeyDown} onpaste={onPaste} ondragenter={onDragEnter} ondragover={onDragOver} ondragleave={onDragLeave} ondrop={onDrop} />
+
+{#snippet transport()}
+  {#if video}
+    {@const player = video.player}
+    <Transport
+      {...playback}
+      onplay={() => void player.play().catch(() => {})}
+      onpause={() => player.pause()}
+      onseek={(t) => player.seek(t)}
+      onstep={(dir) => player.step(dir)}
+      onmute={(m) => (player.muted = m)}
+    />
+  {/if}
+{/snippet}
 
 <div class="app" class:mobile>
   <div class="top">
-    <TopBar {userImage} canSave={!!shown} {save} {mobile} onfile={useFile} />
+    <TopBar {userImage} canSave={!!shown} {save} {mobile} onfile={useFile} video={!!video} onvideodownload={onVideoDownload} />
   </div>
   <main class="stage-area">
     <Stage
@@ -337,11 +446,12 @@
       onsample={(id) => void useSample(id)}
       onfile={useFile}
       {mobile}
+      transport={video ? transport : undefined}
     />
   </main>
   {#if mobile}
     <div class="dock-area">
-      <MobileDock {autoAdjust} {save} canSave={!!shown} />
+      <MobileDock {autoAdjust} {save} canSave={!!shown} video={!!video} onvideodownload={onVideoDownload} />
     </div>
   {:else}
     <div class="panel-area">

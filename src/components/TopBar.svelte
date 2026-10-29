@@ -8,8 +8,11 @@
     /** Phone layout: wordmark and Replace only (Download lives in the dock). */
     mobile?: boolean
     onfile?: (f: File) => void
+    /** A clip is loaded: Download opens the video dialog instead of the format menu. */
+    video?: boolean
+    onvideodownload?: () => void
   }
-  let { userImage, canSave, save, mobile = false, onfile }: Props = $props()
+  let { userImage, canSave, save, mobile = false, onfile, video = false, onvideodownload }: Props = $props()
   let picker = $state<HTMLInputElement>()
 </script>
 
@@ -31,7 +34,11 @@
     />
   {:else}
     <p class="hint">{userImage ? 'Drop or paste to replace' : 'Drop an image or video, or paste an image, to replace the sample'}</p>
-    <DownloadButton {save} disabled={!canSave} />
+    {#if video}
+      <button type="button" class="dl" aria-haspopup="dialog" disabled={!canSave} onclick={() => onvideodownload?.()}>Download</button>
+    {:else}
+      <DownloadButton {save} disabled={!canSave} />
+    {/if}
   {/if}
 </header>
 
@@ -59,6 +66,20 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .dl {
+    height: 32px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: var(--text);
+    color: var(--ground);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .dl:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
   .grow {
     flex: 1;

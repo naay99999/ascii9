@@ -2,6 +2,7 @@
   import { drawGrid } from '../render/drawGrid'
   import SampleStrip from './SampleStrip.svelte'
   import type { Grid } from '../engine/types'
+  import type { Snippet } from 'svelte'
 
   interface Props {
     grid: Grid | null
@@ -15,8 +16,10 @@
     onfile: (f: File) => void
     /** Phone layout: the zoom controls are hidden, so the art always renders at fit. */
     mobile?: boolean
+    /** Video controls, shown between the art and the foot while a clip is loaded. */
+    transport?: Snippet
   }
-  let { grid, size, cellAspect, dropping, error, selectedSample, onsample, onfile, mobile = false }: Props = $props()
+  let { grid, size, cellAspect, dropping, error, selectedSample, onsample, onfile, mobile = false, transport }: Props = $props()
 
   const ZMIN = 0.25
   const ZMAX = 3
@@ -83,6 +86,8 @@
     </div>
   </div>
 
+  {#if transport}{@render transport()}{/if}
+
   <div class="foot">
     <SampleStrip selected={selectedSample} {onsample} {onfile} />
     <div class="tools">
@@ -113,7 +118,7 @@
   .stage {
     position: relative;
     display: grid;
-    grid-template-rows: minmax(0, 1fr) auto auto;
+    grid-template-rows: minmax(0, 1fr) auto auto auto;
     min-width: 0;
     min-height: 0;
     border-radius: var(--radius-card);
