@@ -21,7 +21,7 @@
     <input
       bind:this={picker}
       type="file"
-      accept="image/*"
+      accept="image/*,video/*"
       hidden
       onchange={(e) => {
         const f = e.currentTarget.files?.[0]
@@ -30,7 +30,7 @@
       }}
     />
   {:else}
-    <p class="hint">{userImage ? 'Drop or paste to replace' : 'Drop or paste your own image to replace the sample'}</p>
+    <p class="hint">{userImage ? 'Drop or paste to replace' : 'Drop an image or video, or paste an image, to replace the sample'}</p>
     <DownloadButton {save} disabled={!canSave} />
   {/if}
 </header>

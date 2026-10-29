@@ -74,3 +74,37 @@ describe('imageFromDrop', () => {
     expect(imageFromDrop({ files: [{ type: 'application/pdf' } as File] })).toBeNull()
   })
 })
+
+import { validateMedia, checkDuration, mediaFromDrop } from '../../src/lib/input'
+
+describe('media (video support)', () => {
+  const MB = 1024 * 1024
+  it('validateMedia accepts videos', () => {
+    expect(validateMedia({ type: 'video/mp4', size: 1 })).toEqual({ ok: true, kind: 'video' })
+    expect(validateMedia({ type: 'video/quicktime', size: 1 })).toEqual({ ok: true, kind: 'video' })
+    expect(validateMedia({ type: 'image/png', size: 1 })).toEqual({ ok: true, kind: 'image' })
+  })
+  it('validateMedia rejects other types', () => {
+    expect(validateMedia({ type: 'text/plain', size: 1 })).toEqual({ ok: false, message: "That file isn't an image or video." })
+  })
+  it('validateMedia enforces size limits', () => {
+    expect(validateMedia({ type: 'video/mp4', size: 200 * MB + 1 })).toEqual({ ok: false, message: 'That video is over 200 MB.' })
+    expect(validateMedia({ type: 'video/mp4', size: 200 * MB })).toEqual({ ok: true, kind: 'video' })
+    expect(validateMedia({ type: 'image/png', size: 10 * MB + 1 })).toEqual({ ok: false, message: 'That image is over 10 MB.' })
+  })
+  it('checkDuration enforces limits', () => {
+    expect(checkDuration(60, false)).toEqual({ ok: true })
+    expect(checkDuration(60.5, false)).toEqual({ ok: false, message: 'That video is longer than 60 seconds.' })
+    expect(checkDuration(31, true)).toEqual({ ok: false, message: 'That video is longer than 30 seconds.' })
+  })
+  it('checkDuration rejects non-finite durations', () => {
+    for (const d of [Infinity, NaN, 0])
+      expect(checkDuration(d, false)).toEqual({ ok: false, message: "Couldn't read that video's length." })
+  })
+  it('mediaFromDrop picks first image or video', () => {
+    const txt = { type: 'text/plain' } as File
+    const vid = { type: 'video/mp4' } as File
+    expect(mediaFromDrop({ files: [txt, vid] })).toBe(vid)
+    expect(mediaFromDrop({ files: [txt] })).toBeNull()
+  })
+})

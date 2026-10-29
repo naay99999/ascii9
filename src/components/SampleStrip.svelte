@@ -24,7 +24,7 @@
   <input
     bind:this={picker}
     type="file"
-    accept="image/*"
+    accept="image/*,video/*"
     hidden
     onchange={(e) => {
       const f = e.currentTarget.files?.[0]
