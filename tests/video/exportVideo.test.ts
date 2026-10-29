@@ -39,7 +39,7 @@ vi.mock('mediabunny', () => {
 })
 
 const { exportVideo } = await import('../../src/video/exportVideo')
-const { webCodecsReader, pickReader } = await import('../../src/video/readers')
+const { webCodecsReader, pickReader, seekReader, SEEK_TIMEOUT_MS } = await import('../../src/video/readers')
 
 /** Minimal 2D context: enough for gridFromSource (sampling) and drawGrid (output). */
 class FakeCtx {
@@ -244,5 +244,84 @@ describe('readers', () => {
   it('pickReader picks the seek reader when WebCodecs cannot decode', async () => {
     expect((await pickReader(file, info({ canDecode: false }))).kind).toBe('seek')
     expect((await pickReader(file, info({ canDecode: true }))).kind).toBe('webcodecs')
+  })
+})
+
+/** A <video> that loads at once and, like WebKit, fires `seeked` only when the position actually
+ * changes; with `stuck`, it never fires `seeked` at all. */
+function fakeSeekVideo(stuck = false) {
+  const listeners = new Map<string, Set<() => void>>()
+  const fire = (type: string) => listeners.get(type)?.forEach((fn) => fn())
+  let time = 0
+  const v = {
+    muted: false,
+    playsInline: false,
+    preload: '',
+    readyState: 0,
+    style: {},
+    seeks: 0,
+    get src() {
+      return ''
+    },
+    set src(_u: string) {
+      queueMicrotask(() => {
+        v.readyState = 2
+        fire('loadeddata')
+      })
+    },
+    get currentTime() {
+      return time
+    },
+    set currentTime(t: number) {
+      v.seeks++
+      const moved = t !== time
+      time = t
+      if (moved && !stuck) queueMicrotask(() => fire('seeked'))
+    },
+    addEventListener(type: string, fn: () => void) {
+      if (!listeners.has(type)) listeners.set(type, new Set())
+      listeners.get(type)!.add(fn)
+    },
+    removeEventListener(type: string, fn: () => void) {
+      listeners.get(type)?.delete(fn)
+    },
+    removeAttribute() {},
+    load() {},
+    remove() {},
+  }
+  return v
+}
+
+describe('seekReader', () => {
+  function stubDom(video: ReturnType<typeof fakeSeekVideo>) {
+    vi.stubGlobal('document', { createElement: () => video, body: { appendChild() {} } })
+    vi.stubGlobal('URL', { createObjectURL: () => 'blob:x', revokeObjectURL() {} })
+    vi.stubGlobal('createImageBitmap', async () => ({ width: 1080, height: 1920, close() {} }))
+  }
+
+  it('does not wait for seeked when the time does not move', async () => {
+    const video = fakeSeekVideo()
+    stubDom(video)
+    const times: number[] = []
+    for await (const f of seekReader(file).frames([0, 0, 0.5, 0.5, 1], new AbortController().signal)) {
+      times.push(f.time)
+      f.close()
+    }
+    expect(times).toEqual([0, 0, 0.5, 0.5, 1])
+    expect(video.seeks).toBe(2)
+  })
+
+  it('fails with the read message when a seek never completes', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      stubDom(fakeSeekVideo(true))
+      const it = seekReader(file).frames([0.5], new AbortController().signal)[Symbol.asyncIterator]()
+      const next = it.next()
+      const result = expect(next).rejects.toThrow("Couldn't read that video.")
+      await vi.advanceTimersByTimeAsync(SEEK_TIMEOUT_MS + 1)
+      await result
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

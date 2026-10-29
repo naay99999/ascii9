@@ -68,9 +68,14 @@ export function seekReader(file: Blob): FrameReader {
         await waitFor(video, 'loadeddata', signal)
         for (const time of times) {
           if (signal.aborted) return
-          const seeked = waitFor(video, 'seeked', signal)
-          video.currentTime = time
-          await seeked
+          // Already there (the first frame, or two times on one position): WebKit fires no `seeked`
+          // for a seek that doesn't move, so waiting would hang.
+          const there = Math.abs(video.currentTime - time) < 1e-6 && video.readyState >= 2
+          if (!there) {
+            const seeked = waitFor(video, 'seeked', signal)
+            video.currentTime = time
+            await seeked
+          }
           if (signal.aborted) return
           const bitmap = await createImageBitmap(video)
           yield { time, image: bitmap, width: bitmap.width, height: bitmap.height, close: () => bitmap.close() }
@@ -85,10 +90,17 @@ export function seekReader(file: Blob): FrameReader {
   }
 }
 
-/** Resolves on `type`, rejects on a media error; an abort resolves so the caller can stop cleanly. */
+/** How long one load or seek may take before the clip counts as unreadable. Generous, because a
+ * phone seeking through HEVC can be slow. */
+export const SEEK_TIMEOUT_MS = 10_000
+
+/** Resolves on `type`; rejects on a media error or after SEEK_TIMEOUT_MS. A timeout fails the export
+ * rather than reusing the current frame: silently repeating a stale frame would ship a wrong video
+ * with no sign anything went wrong. An abort resolves so the caller can stop cleanly. */
 function waitFor(video: HTMLVideoElement, type: string, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     const done = (fn: () => void) => () => {
+      clearTimeout(timer)
       video.removeEventListener(type, ok)
       video.removeEventListener('error', fail)
       signal.removeEventListener('abort', ok)
@@ -96,6 +108,7 @@ function waitFor(video: HTMLVideoElement, type: string, signal: AbortSignal): Pr
     }
     const ok = done(resolve)
     const fail = done(() => reject(new Error("Couldn't read that video.")))
+    const timer = setTimeout(fail, SEEK_TIMEOUT_MS)
     video.addEventListener(type, ok)
     video.addEventListener('error', fail)
     signal.addEventListener('abort', ok)
