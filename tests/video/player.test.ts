@@ -90,11 +90,29 @@ describe('createPlayer', () => {
   it('disposed player never calls onFrame again', async () => {
     const onFrame = vi.fn()
     const p = createPlayer(new Blob(), { onFrame, canTakeFrame: () => true, fps: 30 })
+    fake.v.paused = false // a playing clip, so the frame callback would grab if not disposed
     p.dispose()
     fake.frame()
     fake.fire('seeked')
     await flush()
     expect(onFrame).not.toHaveBeenCalled()
     expect(revoke).toHaveBeenCalledWith('blob:clip')
+  })
+
+  // The real race: a grab started before dispose resolves after it. Its bitmap must be freed,
+  // not handed to a converter that is gone.
+  it('closes a bitmap that arrives after dispose instead of delivering it', async () => {
+    const late = { width: 1, height: 1, close: vi.fn() } as unknown as ImageBitmap
+    let resolveBitmap!: (b: ImageBitmap) => void
+    vi.stubGlobal('createImageBitmap', vi.fn(() => new Promise<ImageBitmap>((r) => (resolveBitmap = r))))
+    const onFrame = vi.fn()
+    const p = createPlayer(new Blob(), { onFrame, canTakeFrame: () => true, fps: 30 })
+    fake.fire('seeked')
+    expect(createImageBitmap).toHaveBeenCalledTimes(1)
+    p.dispose()
+    resolveBitmap(late)
+    await flush()
+    expect(onFrame).not.toHaveBeenCalled()
+    expect(late.close).toHaveBeenCalled()
   })
 })
