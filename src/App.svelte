@@ -5,13 +5,14 @@
   import Panel from './components/Panel.svelte'
   import MobileDock from './components/MobileDock.svelte'
   import Transport from './components/Transport.svelte'
+  import VideoDownloadDialog, { type VideoFormat } from './components/VideoDownloadDialog.svelte'
   import type { Format } from './components/DownloadButton.svelte'
   import { settings } from './lib/settings.svelte'
   import { validateMedia, loadBitmap, imageFromClipboard, mediaFromDrop } from './lib/input'
   import { createConverter, type AutoResult, type Used, type WorkerLike } from './lib/converter'
   import { measureCellAspect } from './lib/measure'
   import { SAMPLES } from './lib/samples'
-  import { exportSize, videoExportSize, type GridPlan } from './engine/layout'
+  import { exportSize, gridSize, videoExportSize, type GridPlan } from './engine/layout'
   import { exportImage, fileName, gridToText } from './render/export'
   import type { Grid, Settings } from './engine/types'
   import ConvertWorker from './worker/convert.worker?worker'
@@ -65,6 +66,8 @@
   /** The clip on the stage, if any. The player is not reactive: `playback` mirrors its state. */
   let video = $state.raw<{ file: File; info: VideoInfo; player: Player } | null>(null)
   let playback = $state({ playing: false, time: 0, duration: 0, muted: true })
+  /** The video download dialog. Closing it (or loading another file) stops a running export. */
+  let videoDialog = $state(false)
   /** Phone layout below 768 px. Only the chrome around Stage changes; the converter and worker stay put. */
   let mobile = $state(typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches)
 
@@ -234,6 +237,7 @@
       return
     }
     const seq = ++loadSeq // the latest valid request wins, whatever resolves first
+    videoDialog = false
     if (check.kind === 'video') {
       void useVideo(f, seq)
       return
@@ -246,6 +250,7 @@
     const s = SAMPLES.find((x) => x.id === id)
     if (!s) return
     const seq = ++loadSeq
+    videoDialog = false
     closeVideo()
     try {
       const res = await fetch(s.src)
@@ -417,7 +422,35 @@
   }
 
   function onVideoDownload() {
-    // The video export dialog (Task 8) opens from here.
+    if (video && shown) videoDialog = true
+  }
+
+  /** One video export: the settings and cell aspect are fixed at Start, so later changes don't touch it. */
+  async function runVideoExport(
+    format: VideoFormat,
+    sound: boolean,
+    onProgress: (p: number) => void,
+    signal: AbortSignal,
+  ): Promise<Blob> {
+    const clip = video
+    const art = shown
+    if (!clip || !art) throw new Error('Nothing to export yet')
+    const s = snapshot()
+    const cellAspect = art.used.cellAspect
+    const { file, info } = clip
+    // Preview and export read the same file: pause the preview and leave it paused.
+    clip.player.pause()
+    // The export code (and the encoders it pulls in) loads only when an export starts.
+    const { pickReader } = await import('./video/readers')
+    const reader = await pickReader(file, info)
+    if (format === 'gif') {
+      const { exportGif } = await import('./video/exportGif')
+      return exportGif({ file, info, settings: s, cellAspect }, { reader, onProgress, signal })
+    }
+    const size = videoExportSize(s.layout, gridSize(info.width, info.height, s.layout, cellAspect), cellAspect)
+    const [{ exportSupport }, { exportVideo }] = await Promise.all([import('./video/support'), import('./video/exportVideo')])
+    const support = await exportSupport(size)
+    return exportVideo({ file, info, settings: s, cellAspect, container: format, sound, support }, { reader, onProgress, signal })
   }
 </script>
 
@@ -465,6 +498,18 @@
     </div>
   {/if}
 </div>
+
+{#if video && shown}
+  <VideoDownloadDialog
+    bind:open={videoDialog}
+    info={video.info}
+    size={shown.size}
+    {mobile}
+    run={runVideoExport}
+    savePng={() => save('png')}
+    deliver={saveBlob}
+  />
+{/if}
 
 <style>
   .app {

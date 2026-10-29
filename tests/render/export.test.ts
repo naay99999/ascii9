@@ -14,3 +14,8 @@ test('fileName supports jpg and txt', () => {
   expect(fileName('jpg', new Date(2026, 0, 5))).toBe('ascii9-2026-01-05.jpg')
   expect(fileName('txt', new Date(2026, 11, 31))).toBe('ascii9-2026-12-31.txt')
 })
+test('fileName supports video formats', () => {
+  expect(fileName('mp4', new Date(2026, 9, 29))).toBe('ascii9-2026-10-29.mp4')
+  expect(fileName('webm', new Date(2026, 9, 29))).toBe('ascii9-2026-10-29.webm')
+  expect(fileName('gif', new Date(2026, 9, 29))).toBe('ascii9-2026-10-29.gif')
+})

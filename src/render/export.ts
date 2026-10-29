@@ -11,7 +11,7 @@ export function gridToText(grid: Grid): string {
   return lines.join('\n')
 }
 
-export function fileName(ext: 'png' | 'jpg' | 'txt', d: Date = new Date()): string {
+export function fileName(ext: 'png' | 'jpg' | 'txt' | 'mp4' | 'webm' | 'gif', d: Date = new Date()): string {
   const p = (n: number) => String(n).padStart(2, '0')
   return `ascii9-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}.${ext}`
 }
