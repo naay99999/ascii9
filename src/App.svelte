@@ -68,6 +68,8 @@
   let playback = $state({ playing: false, time: 0, duration: 0, muted: true })
   /** The video download dialog. Closing it (or loading another file) stops a running export. */
   let videoDialog = $state(false)
+  /** Changes with anything that changes an exported video, so the dialog can tell a finished file is stale. */
+  const exportStamp = $derived(JSON.stringify(settings.value) + '|' + cellAspect)
   /** Phone layout below 768 px. Only the chrome around Stage changes; the converter and worker stay put. */
   let mobile = $state(typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches)
 
@@ -501,6 +503,8 @@
 </div>
 
 {#if video && shown}
+  <!-- Keyed on the clip: a new clip starts with a fresh dialog, dropping any finished file. -->
+  {#key video}
   <VideoDownloadDialog
     bind:open={videoDialog}
     info={video.info}
@@ -509,7 +513,9 @@
     run={runVideoExport}
     savePng={() => save('png')}
     deliver={saveBlob}
+    stamp={exportStamp}
   />
+  {/key}
 {/if}
 
 <style>

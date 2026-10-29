@@ -3,7 +3,7 @@
 </script>
 
 <script lang="ts">
-  import { tick } from 'svelte'
+  import { tick, untrack } from 'svelte'
   import { gifSize } from '../engine/layout'
   import { exclusive } from '../lib/exclusive'
   import { fileName } from '../render/export'
@@ -25,8 +25,10 @@
     savePng(): Promise<void>
     /** Downloads a finished file. */
     deliver(blob: Blob, name: string): void
+    /** Changes whenever the art would export differently: a finished file made under another stamp is stale. */
+    stamp: string
   }
-  let { open = $bindable(false), info, size, mobile, run, savePng, deliver }: Props = $props()
+  let { open = $bindable(false), info, size, mobile, run, savePng, deliver, stamp }: Props = $props()
 
   const CHOICES: { value: Choice; label: string }[] = [
     { value: 'mp4', label: 'MP4' },
@@ -52,8 +54,11 @@
   let phase = $state<'idle' | 'running' | 'done'>('idle')
   let progress = $state(0)
   let message = $state('')
-  /** A finished file waiting for the Save to Photos tap (phones that can share files). */
+  /** A finished file waiting for the Save to Photos tap (phones that can share files). It outlives
+   * closing the dialog, until the settings change. */
   let pending = $state.raw<File | null>(null)
+  /** The stamp the pending file was made under. */
+  let madeUnder = ''
   /** The PNG save or the share sheet is opening: a second tap must not start another. */
   let busy = $state(false)
   let controller: AbortController | null = null
@@ -123,9 +128,13 @@
     }
   })
 
-  // Closed from outside (a new file was loaded) or unmounted: stop a running export.
+  // Closed from outside while exporting: stop it. A finished file waiting for Save to Photos stays.
   $effect(() => {
-    if (!open) reset()
+    if (!open && phase === 'running') reset()
+  })
+  // Reopened: start clean, unless a finished file is still waiting and still matches the art.
+  $effect(() => {
+    if (open) untrack(() => (!pending || madeUnder !== stamp) && reset())
   })
   $effect(() => () => controller?.abort())
 
@@ -172,6 +181,7 @@
     reset()
     if (choice === 'png') return saveFrame()
     const format = choice
+    madeUnder = stamp
     const ac = new AbortController()
     controller = ac
     phase = 'running'
@@ -298,7 +308,7 @@
 
     {#if running}
       <div class="progress">
-        <label for="{titleId}-progress">Exporting</label>
+        <label for="{titleId}-progress">{progress >= 1 ? 'Finishing…' : 'Exporting'}</label>
         <progress id="{titleId}-progress" max="100" value={pct}>{pct}%</progress>
         <span class="pct" aria-hidden="true">{pct}%</span>
       </div>
